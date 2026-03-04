@@ -143,28 +143,6 @@ Per-host latency threshold and a global fallback threshold are both supported.
 
 ---
 
-## Screenshots
-
-### Dashboard
-![Dashboard](docs/screenshots/dashboard.png)
-
-### Hosts — 30-day heatmap & uptime
-![Hosts](docs/screenshots/hosts.png)
-
-### Host detail — SLA, latency chart, maintenance toggle
-![Host detail](docs/screenshots/host-detail.png)
-
-### Proxmox — cluster overview
-![Proxmox](docs/screenshots/proxmox.png)
-
-### Alerts — global problem overview
-![Alerts](docs/screenshots/alerts.png)
-
-### Settings
-![Settings](docs/screenshots/settings.png)
-
----
-
 ## License
 
 MIT
