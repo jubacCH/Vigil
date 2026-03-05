@@ -4,26 +4,39 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{% block title %}{{ request.state.site_name }}{% endblock %}</title>
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
       theme: {
         extend: {
           colors: {
-            surface: '#0b0d14',
-            panel: '#13151f',
-            card: '#1a1d2e',
-            border: '#252836',
+            bg:      '#07090f',
+            surface: '#0c0e1a',
+            card:    '#111426',
+            border:  '#1c2033',
           }
         }
       }
     }
   </script>
   <style>
-    body { background-color: #0b0d14; color: #e2e8f0; }
-    ::-webkit-scrollbar { width: 6px; }
-    ::-webkit-scrollbar-track { background: #0b0d14; }
-    ::-webkit-scrollbar-thumb { background: #252836; border-radius: 3px; }
+    body { background-color: #07090f; color: #e2e8f0; }
+    ::-webkit-scrollbar { width: 5px; }
+    ::-webkit-scrollbar-track { background: #07090f; }
+    ::-webkit-scrollbar-thumb { background: #1c2033; border-radius: 3px; }
+    /* Active nav left-bar indicator */
+    .nav-active { position: relative; }
+    .nav-active::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 22%;
+      height: 56%;
+      width: 2.5px;
+      background: #6366f1;
+      border-radius: 0 3px 3px 0;
+    }
     @media (max-width: 768px) {
       #sidebar { transform: translateX(-100%); transition: transform 0.2s ease; position: fixed; z-index: 40; top: 0; left: 0; height: 100vh; }
       #sidebar.open { transform: translateX(0); }
@@ -40,49 +53,67 @@
   {% block head %}{% endblock %}
 </head>
 <body class="min-h-screen">
+
   <!-- Mobile top bar -->
-  <div id="mobile-topbar" class="hidden items-center gap-3 px-4 py-3 bg-[#13151f] border-b border-[#252836] sticky top-0 z-30">
-    <button onclick="toggleSidebar()" class="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-[#252836] transition-colors">
+  <div id="mobile-topbar" class="hidden items-center gap-3 px-4 py-3 bg-[#0c0e1a] border-b border-[#1c2033] sticky top-0 z-30">
+    <button onclick="toggleSidebar()" class="p-1.5 rounded-lg text-slate-500 hover:text-white hover:bg-white/5 transition-colors">
       <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
       </svg>
     </button>
-    <span class="text-white font-semibold text-sm">{{ request.state.site_name }}</span>
+    <div class="flex items-center gap-2">
+      <svg width="22" height="22" viewBox="0 0 32 32" fill="none">
+        <path d="M2 16C2 16 7 6 16 6C25 6 30 16 30 16C30 16 25 26 16 26C7 26 2 16 2 16Z" fill="rgba(99,102,241,0.12)" stroke="#818cf8" stroke-width="1.5" stroke-linejoin="round"/>
+        <circle cx="16" cy="16" r="6" fill="#6366f1"/>
+        <circle cx="16" cy="16" r="3" fill="#312e81"/>
+        <circle cx="18.5" cy="13.5" r="2" fill="white" opacity="0.4"/>
+      </svg>
+      <span class="text-white font-semibold text-sm">{{ request.state.site_name }}</span>
+    </div>
   </div>
 
   <!-- Sidebar overlay (mobile) -->
-  <div id="sidebar-overlay" class="fixed inset-0 bg-black/50 z-30" onclick="toggleSidebar()"></div>
+  <div id="sidebar-overlay" class="fixed inset-0 bg-black/60 z-30" onclick="toggleSidebar()"></div>
 
   <div class="flex min-h-screen">
 
-    <!-- Sidebar -->
-    <aside id="sidebar" class="w-52 shrink-0 bg-[#13151f] border-r border-[#252836] flex flex-col">
-      <div class="px-5 py-4 border-b border-[#252836]">
-        <div class="flex items-center gap-2">
-          <div class="w-6 h-6 rounded-md bg-blue-600 flex items-center justify-center">
-            <svg class="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
-                    d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
-            </svg>
+    <!-- ── Sidebar ─────────────────────────────────────────────────────── -->
+    <aside id="sidebar" class="w-56 shrink-0 bg-[#0c0e1a] border-r border-[#1c2033] flex flex-col">
+
+      <!-- Brand header -->
+      <div class="px-4 py-4 border-b border-[#1c2033]">
+        <div class="flex items-center gap-2.5">
+          <!-- Vigil Eye Logo -->
+          <svg width="30" height="30" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M2 16C2 16 7 6 16 6C25 6 30 16 30 16C30 16 25 26 16 26C7 26 2 16 2 16Z"
+                  fill="rgba(99,102,241,0.12)" stroke="#818cf8" stroke-width="1.5" stroke-linejoin="round"/>
+            <circle cx="16" cy="16" r="6" fill="#6366f1"/>
+            <circle cx="16" cy="16" r="3" fill="#312e81"/>
+            <circle cx="18.5" cy="13.5" r="2" fill="white" opacity="0.4"/>
+          </svg>
+          <div class="leading-tight">
+            <p class="text-white font-semibold text-sm tracking-tight">{{ request.state.site_name }}</p>
+            <p class="text-[10px] text-slate-600">Infrastructure Monitor</p>
           </div>
-          <span class="text-white font-semibold text-sm">{{ request.state.site_name }}</span>
         </div>
       </div>
 
-      <nav class="flex-1 px-2 py-3 space-y-0.5">
-        <p class="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-widest text-slate-600">Monitor</p>
+      <!-- Navigation -->
+      <nav class="flex-1 px-2 py-3 space-y-0.5 overflow-y-auto">
+
+        <p class="px-3 pt-1 pb-1.5 text-[10px] font-semibold uppercase tracking-widest text-slate-700">Monitor</p>
+
         <a href="/"
-           class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors
-                  {% if active_page == 'dashboard' %}bg-blue-600 text-white{% else %}text-slate-400 hover:text-white hover:bg-[#252836]{% endif %}">
+           class="{% if active_page == 'dashboard' %}nav-active bg-indigo-500/[0.08] text-indigo-300{% else %}text-slate-500 hover:text-white hover:bg-white/[0.05]{% endif %} flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-all">
           <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                   d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/>
           </svg>
           Dashboard
         </a>
+
         <a href="/ping"
-           class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors
-                  {% if active_page == 'ping' %}bg-blue-600 text-white{% else %}text-slate-400 hover:text-white hover:bg-[#252836]{% endif %}">
+           class="{% if active_page == 'ping' %}nav-active bg-indigo-500/[0.08] text-indigo-300{% else %}text-slate-500 hover:text-white hover:bg-white/[0.05]{% endif %} flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-all">
           <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                   d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01"/>
@@ -90,22 +121,22 @@
           Hosts
         </a>
 
-        <!-- Integrations group (only shown when at least one integration is configured, or we're on an integration page) -->
+        <!-- Integrations group -->
         {% set _nc = request.state.nav_counts %}
-        {% set _any_configured = _nc.proxmox > 0 or _nc.unifi > 0 or _nc.unas > 0 or _nc.portainer > 0 or _nc.truenas > 0 or _nc.synology > 0 or _nc.pihole > 0 or _nc.adguard > 0 or _nc.firewall > 0 or _nc.hass > 0 or _nc.gitea > 0 or _nc.phpipam > 0 or _nc.speedtest > 0 or _nc.ups > 0 or _nc.redfish > 0 %}
-        {% set integrations_active = active_page in ('proxmox', 'unifi', 'unas', 'pihole', 'adguard', 'portainer', 'truenas', 'synology', 'firewall', 'hass', 'gitea', 'phpipam', 'ups', 'redfish', 'speedtest') %}
-        <div {% if not _any_configured and not integrations_active %}style="display:none"{% endif %}>
+        {% set _any = _nc.proxmox > 0 or _nc.unifi > 0 or _nc.unas > 0 or _nc.portainer > 0 or _nc.truenas > 0 or _nc.synology > 0 or _nc.pihole > 0 or _nc.adguard > 0 or _nc.firewall > 0 or _nc.hass > 0 or _nc.gitea > 0 or _nc.phpipam > 0 or _nc.speedtest > 0 or _nc.ups > 0 or _nc.redfish > 0 %}
+        {% set integ_active = active_page in ('proxmox', 'unifi', 'unas', 'pihole', 'adguard', 'portainer', 'truenas', 'synology', 'firewall', 'hass', 'gitea', 'phpipam', 'ups', 'redfish', 'speedtest') %}
+        <div {% if not _any and not integ_active %}style="display:none"{% endif %}>
           <button onclick="toggleIntegrations()"
-                  class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-colors
-                         {% if integrations_active %}text-white{% else %}text-slate-400 hover:text-white hover:bg-[#252836]{% endif %}">
+                  class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-all
+                         {% if integ_active %}text-indigo-300{% else %}text-slate-500 hover:text-white hover:bg-white/[0.05]{% endif %}">
             <span class="flex items-center gap-2.5">
               <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                      d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/>
+                      d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
               </svg>
               Integrations
             </span>
-            <svg id="integrations-chevron" class="w-3.5 h-3.5 transition-transform {% if not integrations_active %}rotate-180{% endif %}"
+            <svg id="integrations-chevron" class="w-3.5 h-3.5 transition-transform {% if not integ_active %}rotate-180{% endif %}"
                  fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
             </svg>
@@ -113,195 +144,155 @@
 
           {% set nc = request.state.nav_counts %}
           <div id="integrations-submenu"
-               class="mt-0.5 ml-3 pl-3 border-l border-[#252836] space-y-0.5 {% if not integrations_active %}hidden{% endif %}">
+               class="mt-0.5 ml-3 pl-3 border-l border-[#1c2033] space-y-0.5 {% if not integ_active %}hidden{% endif %}">
+
             {% if nc.proxmox > 0 or active_page == 'proxmox' %}
             <a href="/proxmox"
-               class="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors
-                      {% if active_page == 'proxmox' %}bg-blue-600 text-white{% else %}text-slate-400 hover:text-white hover:bg-[#252836]{% endif %}">
+               class="{% if active_page == 'proxmox' %}text-indigo-300 bg-indigo-500/[0.08]{% else %}text-slate-600 hover:text-white hover:bg-white/[0.05]{% endif %} flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-all">
               <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M12 5l7 7-7 7"/>
-              </svg>
-              Proxmox
+              </svg>Proxmox
             </a>
             {% endif %}
             {% if nc.unifi > 0 or active_page == 'unifi' %}
             <a href="/unifi"
-               class="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors
-                      {% if active_page == 'unifi' %}bg-blue-600 text-white{% else %}text-slate-400 hover:text-white hover:bg-[#252836]{% endif %}">
+               class="{% if active_page == 'unifi' %}text-indigo-300 bg-indigo-500/[0.08]{% else %}text-slate-600 hover:text-white hover:bg-white/[0.05]{% endif %} flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-all">
               <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                      d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0"/>
-              </svg>
-              UniFi
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0"/>
+              </svg>UniFi
             </a>
             {% endif %}
             {% if nc.unas > 0 or active_page == 'unas' %}
             <a href="/unas"
-               class="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors
-                      {% if active_page == 'unas' %}bg-blue-600 text-white{% else %}text-slate-400 hover:text-white hover:bg-[#252836]{% endif %}">
+               class="{% if active_page == 'unas' %}text-indigo-300 bg-indigo-500/[0.08]{% else %}text-slate-600 hover:text-white hover:bg-white/[0.05]{% endif %} flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-all">
               <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                      d="M4 7v10c0 2 1 3 3 3h10c2 0 3-1 3-3V7c0-2-1-3-3-3H7C5 4 4 5 4 7z M8 10h8 M8 14h5"/>
-              </svg>
-              UniFi NAS
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2 1 3 3 3h10c2 0 3-1 3-3V7c0-2-1-3-3-3H7C5 4 4 5 4 7z M8 10h8 M8 14h5"/>
+              </svg>UniFi NAS
             </a>
             {% endif %}
             {% if nc.portainer > 0 or active_page == 'portainer' %}
             <a href="/portainer"
-               class="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors
-                      {% if active_page == 'portainer' %}bg-blue-600 text-white{% else %}text-slate-400 hover:text-white hover:bg-[#252836]{% endif %}">
+               class="{% if active_page == 'portainer' %}text-indigo-300 bg-indigo-500/[0.08]{% else %}text-slate-600 hover:text-white hover:bg-white/[0.05]{% endif %} flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-all">
               <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                      d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 10V7"/>
-              </svg>
-              Portainer
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 10V7"/>
+              </svg>Portainer
             </a>
             {% endif %}
             {% if nc.truenas > 0 or active_page == 'truenas' %}
             <a href="/truenas"
-               class="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors
-                      {% if active_page == 'truenas' %}bg-blue-600 text-white{% else %}text-slate-400 hover:text-white hover:bg-[#252836]{% endif %}">
+               class="{% if active_page == 'truenas' %}text-indigo-300 bg-indigo-500/[0.08]{% else %}text-slate-600 hover:text-white hover:bg-white/[0.05]{% endif %} flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-all">
               <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                      d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"/>
-              </svg>
-              TrueNAS
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"/>
+              </svg>TrueNAS
             </a>
             {% endif %}
             {% if nc.synology > 0 or active_page == 'synology' %}
             <a href="/synology"
-               class="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors
-                      {% if active_page == 'synology' %}bg-blue-600 text-white{% else %}text-slate-400 hover:text-white hover:bg-[#252836]{% endif %}">
+               class="{% if active_page == 'synology' %}text-indigo-300 bg-indigo-500/[0.08]{% else %}text-slate-600 hover:text-white hover:bg-white/[0.05]{% endif %} flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-all">
               <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                      d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2"/>
-              </svg>
-              Synology
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2"/>
+              </svg>Synology
             </a>
             {% endif %}
             {% if nc.pihole > 0 or active_page == 'pihole' %}
             <a href="/pihole"
-               class="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors
-                      {% if active_page == 'pihole' %}bg-blue-600 text-white{% else %}text-slate-400 hover:text-white hover:bg-[#252836]{% endif %}">
+               class="{% if active_page == 'pihole' %}text-indigo-300 bg-indigo-500/[0.08]{% else %}text-slate-600 hover:text-white hover:bg-white/[0.05]{% endif %} flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-all">
               <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                      d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/>
-              </svg>
-              Pi-hole
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/>
+              </svg>Pi-hole
             </a>
             {% endif %}
             {% if nc.adguard > 0 or active_page == 'adguard' %}
             <a href="/adguard"
-               class="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors
-                      {% if active_page == 'adguard' %}bg-blue-600 text-white{% else %}text-slate-400 hover:text-white hover:bg-[#252836]{% endif %}">
+               class="{% if active_page == 'adguard' %}text-indigo-300 bg-indigo-500/[0.08]{% else %}text-slate-600 hover:text-white hover:bg-white/[0.05]{% endif %} flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-all">
               <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                      d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
-              </svg>
-              AdGuard
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+              </svg>AdGuard
             </a>
             {% endif %}
             {% if nc.firewall > 0 or active_page == 'firewall' %}
             <a href="/firewall"
-               class="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors
-                      {% if active_page == 'firewall' %}bg-blue-600 text-white{% else %}text-slate-400 hover:text-white hover:bg-[#252836]{% endif %}">
+               class="{% if active_page == 'firewall' %}text-indigo-300 bg-indigo-500/[0.08]{% else %}text-slate-600 hover:text-white hover:bg-white/[0.05]{% endif %} flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-all">
               <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                      d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
-              </svg>
-              Firewall
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+              </svg>Firewall
             </a>
             {% endif %}
             {% if nc.hass > 0 or active_page == 'hass' %}
             <a href="/hass"
-               class="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors
-                      {% if active_page == 'hass' %}bg-blue-600 text-white{% else %}text-slate-400 hover:text-white hover:bg-[#252836]{% endif %}">
+               class="{% if active_page == 'hass' %}text-indigo-300 bg-indigo-500/[0.08]{% else %}text-slate-600 hover:text-white hover:bg-white/[0.05]{% endif %} flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-all">
               <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                      d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
-              </svg>
-              Home Assistant
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
+              </svg>Home Assistant
             </a>
             {% endif %}
             {% if nc.gitea > 0 or active_page == 'gitea' %}
             <a href="/gitea"
-               class="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors
-                      {% if active_page == 'gitea' %}bg-blue-600 text-white{% else %}text-slate-400 hover:text-white hover:bg-[#252836]{% endif %}">
+               class="{% if active_page == 'gitea' %}text-indigo-300 bg-indigo-500/[0.08]{% else %}text-slate-600 hover:text-white hover:bg-white/[0.05]{% endif %} flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-all">
               <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                      d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/>
-              </svg>
-              Gitea
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/>
+              </svg>Gitea
             </a>
             {% endif %}
             {% if nc.phpipam > 0 or active_page == 'phpipam' %}
             <a href="/phpipam"
-               class="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors
-                      {% if active_page == 'phpipam' %}bg-blue-600 text-white{% else %}text-slate-400 hover:text-white hover:bg-[#252836]{% endif %}">
+               class="{% if active_page == 'phpipam' %}text-indigo-300 bg-indigo-500/[0.08]{% else %}text-slate-600 hover:text-white hover:bg-white/[0.05]{% endif %} flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-all">
               <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                      d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
-              </svg>
-              phpIPAM
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+              </svg>phpIPAM
             </a>
             {% endif %}
             {% if nc.speedtest > 0 or active_page == 'speedtest' %}
             <a href="/speedtest"
-               class="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors
-                      {% if active_page == 'speedtest' %}bg-blue-600 text-white{% else %}text-slate-400 hover:text-white hover:bg-[#252836]{% endif %}">
+               class="{% if active_page == 'speedtest' %}text-indigo-300 bg-indigo-500/[0.08]{% else %}text-slate-600 hover:text-white hover:bg-white/[0.05]{% endif %} flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-all">
               <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                      d="M13 10V3L4 14h7v7l9-11h-7z"/>
-              </svg>
-              Speedtest
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+              </svg>Speedtest
             </a>
             {% endif %}
             {% if nc.ups > 0 or active_page == 'ups' %}
             <a href="/ups"
-               class="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors
-                      {% if active_page == 'ups' %}bg-blue-600 text-white{% else %}text-slate-400 hover:text-white hover:bg-[#252836]{% endif %}">
+               class="{% if active_page == 'ups' %}text-indigo-300 bg-indigo-500/[0.08]{% else %}text-slate-600 hover:text-white hover:bg-white/[0.05]{% endif %} flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-all">
               <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                      d="M3 10h18M3 14h18M6 6h.01M18 6h.01M6 18h.01M18 18h.01M5 6a2 2 0 104 0 2 2 0 00-4 0zm10 0a2 2 0 104 0 2 2 0 00-4 0z"/>
-              </svg>
-              UPS / NUT
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M3 14h18M6 6h.01M18 6h.01M6 18h.01M18 18h.01M5 6a2 2 0 104 0 2 2 0 00-4 0zm10 0a2 2 0 104 0 2 2 0 00-4 0z"/>
+              </svg>UPS / NUT
             </a>
             {% endif %}
             {% if nc.redfish > 0 or active_page == 'redfish' %}
             <a href="/redfish"
-               class="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors
-                      {% if active_page == 'redfish' %}bg-blue-600 text-white{% else %}text-slate-400 hover:text-white hover:bg-[#252836]{% endif %}">
+               class="{% if active_page == 'redfish' %}text-indigo-300 bg-indigo-500/[0.08]{% else %}text-slate-600 hover:text-white hover:bg-white/[0.05]{% endif %} flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-all">
               <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                      d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18"/>
-              </svg>
-              Redfish / iDRAC
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18"/>
+              </svg>Redfish / iDRAC
             </a>
             {% endif %}
+
+            {% if request.state.current_user and request.state.current_user.role in ('admin', 'editor') %}
             <button onclick="document.getElementById('integration-picker').classList.remove('hidden')"
-                    class="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs text-slate-600 hover:text-slate-300 hover:bg-[#252836] transition-colors">
+                    class="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs text-slate-700 hover:text-slate-400 hover:bg-white/[0.04] transition-all">
               <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
               </svg>
               Add Integration
             </button>
+            {% endif %}
           </div>
         </div>
 
-        <p class="px-3 pt-4 pb-1 text-[10px] font-semibold uppercase tracking-widest text-slate-600">System</p>
+        <p class="px-3 pt-3 pb-1.5 text-[10px] font-semibold uppercase tracking-widest text-slate-700">System</p>
+
         <a href="/alerts"
-           class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors
-                  {% if active_page == 'alerts' %}bg-blue-600 text-white{% else %}text-slate-400 hover:text-white hover:bg-[#252836]{% endif %}">
+           class="{% if active_page == 'alerts' %}nav-active bg-indigo-500/[0.08] text-indigo-300{% else %}text-slate-500 hover:text-white hover:bg-white/[0.05]{% endif %} flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-all">
           <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                   d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
           </svg>
           Alerts
         </a>
+
         {% if request.state.current_user and request.state.current_user.role == 'admin' %}
         <a href="/settings"
-           class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors
-                  {% if active_page == 'settings' %}bg-blue-600 text-white{% else %}text-slate-400 hover:text-white hover:bg-[#252836]{% endif %}">
+           class="{% if active_page == 'settings' %}nav-active bg-indigo-500/[0.08] text-indigo-300{% else %}text-slate-500 hover:text-white hover:bg-white/[0.05]{% endif %} flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-all">
           <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                   d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
@@ -310,39 +301,39 @@
           Settings
         </a>
         <a href="/users"
-           class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors
-                  {% if active_page == 'users' %}bg-blue-600 text-white{% else %}text-slate-400 hover:text-white hover:bg-[#252836]{% endif %}">
+           class="{% if active_page == 'users' %}nav-active bg-indigo-500/[0.08] text-indigo-300{% else %}text-slate-500 hover:text-white hover:bg-white/[0.05]{% endif %} flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-all">
           <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                   d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/>
           </svg>
           Users
         </a>
-        {% else %}
-        <a href="/settings"
-           class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors
-                  {% if active_page == 'settings' %}bg-blue-600 text-white{% else %}text-slate-400 hover:text-white hover:bg-[#252836]{% endif %}">
-          <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                  d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
-          </svg>
-          Settings
-        </a>
         {% endif %}
+
       </nav>
 
-      <!-- Footer -->
-      <div class="px-4 py-3 border-t border-[#252836] flex items-center justify-between gap-2">
-        <div class="min-w-0">
-          {% if request.state.current_user %}
-          <p class="text-xs text-slate-300 font-medium truncate">{{ request.state.current_user.username }}</p>
-          <p class="text-[10px] text-slate-600 capitalize">{{ request.state.current_user.role or 'admin' }}</p>
-          {% else %}
-          <p class="text-[10px] text-slate-600">Vigil</p>
-          {% endif %}
+      <!-- Sidebar footer: user info -->
+      <div class="px-4 py-3 border-t border-[#1c2033]">
+        {% if request.state.current_user %}
+        <div class="flex items-center gap-2.5">
+          <div class="w-7 h-7 rounded-full bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center shrink-0">
+            <span class="text-indigo-300 text-xs font-semibold">{{ request.state.current_user.username[0].upper() }}</span>
+          </div>
+          <div class="flex-1 min-w-0">
+            <p class="text-xs text-slate-300 font-medium truncate">{{ request.state.current_user.username }}</p>
+            <p class="text-[10px] text-slate-600 capitalize">{{ request.state.current_user.role or 'admin' }}</p>
+          </div>
+          <a href="/logout" title="Logout"
+             class="p-1 rounded-md text-slate-700 hover:text-slate-400 transition-colors">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+            </svg>
+          </a>
         </div>
-        <a href="/logout" class="text-[10px] text-slate-600 hover:text-slate-400 transition-colors shrink-0">Logout</a>
+        {% else %}
+        <p class="text-[10px] text-slate-700">Vigil</p>
+        {% endif %}
       </div>
     </aside>
 
@@ -354,269 +345,70 @@
 
   {% block scripts %}{% endblock %}
 
-  <!-- Integration Picker Modal -->
-  <div id="integration-picker" class="hidden fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+  <!-- ── Integration Picker Modal ─────────────────────────────────────── -->
+  <div id="integration-picker" class="hidden fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4"
        onclick="if(event.target===this)this.classList.add('hidden')">
-    <div class="bg-[#13151f] border border-[#252836] rounded-xl p-6 w-full max-w-lg shadow-2xl">
+    <div class="bg-[#0c0e1a] border border-[#1c2033] rounded-2xl p-6 w-full max-w-lg shadow-2xl">
       <div class="flex items-center justify-between mb-5">
-        <h2 class="text-white font-semibold">Add Integration</h2>
+        <div>
+          <h2 class="text-white font-semibold">Add Integration</h2>
+          <p class="text-xs text-slate-600 mt-0.5">Connect a service to monitor</p>
+        </div>
         <button onclick="document.getElementById('integration-picker').classList.add('hidden')"
-                class="text-slate-500 hover:text-white transition-colors">
-          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                class="p-1.5 rounded-lg text-slate-600 hover:text-white hover:bg-white/5 transition-colors">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
           </svg>
         </button>
       </div>
-      <div class="grid grid-cols-3 gap-3">
-        <!-- Proxmox -->
-        <a href="/proxmox"
+      <div class="grid grid-cols-3 gap-2.5">
+        {% for item in [
+          ('/proxmox',   'Proxmox',        'VMs & LXC',          '#f97316', 'M5 12h14M12 5l7 7-7 7'),
+          ('/unifi',     'UniFi',          'Network',            '#3b82f6', 'M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0'),
+          ('/unas',      'UniFi NAS',      'Storage',            '#06b6d4', 'M4 7v10c0 2 1 3 3 3h10c2 0 3-1 3-3V7c0-2-1-3-3-3H7C5 4 4 5 4 7z M8 10h8 M8 14h5'),
+          ('/portainer', 'Portainer',      'Containers',         '#14b8a6', 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 10V7'),
+          ('/truenas',   'TrueNAS',        'NAS Storage',        '#64748b', 'M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4'),
+          ('/synology',  'Synology',       'DSM NAS',            '#6366f1', 'M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2'),
+          ('/pihole',    'Pi-hole',        'DNS Blocking',       '#ef4444', 'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z'),
+          ('/adguard',   'AdGuard',        'DNS Blocking',       '#10b981', 'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z'),
+          ('/firewall',  'Firewall',       'OPNsense/pfSense',   '#f59e0b', 'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z'),
+          ('/hass',      'Home Assistant', 'Smart Home',         '#f97316', 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6'),
+          ('/gitea',     'Gitea',          'Git Hosting',        '#22c55e', 'M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4'),
+          ('/phpipam',   'phpIPAM',        'IP Management',      '#06b6d4', 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z'),
+          ('/speedtest', 'Speedtest',      'Internet Speed',     '#6366f1', 'M13 10V3L4 14h7v7l9-11h-7z'),
+          ('/ups',       'UPS / NUT',      'Battery Backup',     '#eab308', 'M3 10h18M3 14h18M6 6h.01M18 6h.01M6 18h.01M18 18h.01M5 6a2 2 0 104 0 2 2 0 00-4 0zm10 0a2 2 0 104 0 2 2 0 00-4 0z'),
+          ('/redfish',   'Redfish',        'Server Hardware',    '#a855f7', 'M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18'),
+        ] %}
+        <a href="{{ item[0] }}"
            onclick="document.getElementById('integration-picker').classList.add('hidden')"
-           class="flex flex-col items-center gap-3 p-4 bg-[#0b0d14] border border-[#252836] hover:border-[#3a3d4e] rounded-xl transition-colors group cursor-pointer">
-          <div class="w-10 h-10 rounded-xl bg-orange-500/10 flex items-center justify-center">
-            <svg class="w-5 h-5 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M5 12h14M12 5l7 7-7 7"/>
+           class="flex flex-col items-center gap-2.5 p-3.5 bg-[#07090f] border border-[#1c2033] hover:border-[#2a2d42] rounded-xl transition-all group cursor-pointer">
+          <div class="w-9 h-9 rounded-xl flex items-center justify-center" style="background: {{ item[3] }}18">
+            <svg class="w-4.5 h-4.5" fill="none" stroke="{{ item[3] }}" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="{{ item[4] }}"/>
             </svg>
           </div>
           <div class="text-center">
-            <p class="text-white text-sm font-medium group-hover:text-orange-400 transition-colors">Proxmox</p>
-            <p class="text-slate-600 text-[10px] mt-0.5">VMs &amp; LXC</p>
+            <p class="text-white text-xs font-medium leading-tight">{{ item[1] }}</p>
+            <p class="text-slate-700 text-[10px] mt-0.5">{{ item[2] }}</p>
           </div>
         </a>
-        <!-- UniFi -->
-        <a href="/unifi"
-           onclick="document.getElementById('integration-picker').classList.add('hidden')"
-           class="flex flex-col items-center gap-3 p-4 bg-[#0b0d14] border border-[#252836] hover:border-[#3a3d4e] rounded-xl transition-colors group cursor-pointer">
-          <div class="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center">
-            <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-                    d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0"/>
-            </svg>
-          </div>
-          <div class="text-center">
-            <p class="text-white text-sm font-medium group-hover:text-blue-400 transition-colors">UniFi</p>
-            <p class="text-slate-600 text-[10px] mt-0.5">Network</p>
-          </div>
-        </a>
-        <!-- UniFi NAS -->
-        <a href="/unas"
-           onclick="document.getElementById('integration-picker').classList.add('hidden')"
-           class="flex flex-col items-center gap-3 p-4 bg-[#0b0d14] border border-[#252836] hover:border-[#3a3d4e] rounded-xl transition-colors group cursor-pointer">
-          <div class="w-10 h-10 rounded-xl bg-cyan-500/10 flex items-center justify-center">
-            <svg class="w-5 h-5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-                    d="M4 7v10c0 2 1 3 3 3h10c2 0 3-1 3-3V7c0-2-1-3-3-3H7C5 4 4 5 4 7z M8 10h8 M8 14h5"/>
-            </svg>
-          </div>
-          <div class="text-center">
-            <p class="text-white text-sm font-medium group-hover:text-cyan-400 transition-colors">UniFi NAS</p>
-            <p class="text-slate-600 text-[10px] mt-0.5">Storage</p>
-          </div>
-        </a>
-        <!-- Portainer -->
-        <a href="/portainer"
-           onclick="document.getElementById('integration-picker').classList.add('hidden')"
-           class="flex flex-col items-center gap-3 p-4 bg-[#0b0d14] border border-[#252836] hover:border-[#3a3d4e] rounded-xl transition-colors group cursor-pointer">
-          <div class="w-10 h-10 rounded-xl bg-teal-500/10 flex items-center justify-center">
-            <svg class="w-5 h-5 text-teal-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-                    d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 10V7"/>
-            </svg>
-          </div>
-          <div class="text-center">
-            <p class="text-white text-sm font-medium group-hover:text-teal-400 transition-colors">Portainer</p>
-            <p class="text-slate-600 text-[10px] mt-0.5">Docker / Containers</p>
-          </div>
-        </a>
-        <!-- TrueNAS -->
-        <a href="/truenas"
-           onclick="document.getElementById('integration-picker').classList.add('hidden')"
-           class="flex flex-col items-center gap-3 p-4 bg-[#0b0d14] border border-[#252836] hover:border-[#3a3d4e] rounded-xl transition-colors group cursor-pointer">
-          <div class="w-10 h-10 rounded-xl bg-slate-500/10 flex items-center justify-center">
-            <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-                    d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"/>
-            </svg>
-          </div>
-          <div class="text-center">
-            <p class="text-white text-sm font-medium group-hover:text-slate-400 transition-colors">TrueNAS</p>
-            <p class="text-slate-600 text-[10px] mt-0.5">NAS Storage</p>
-          </div>
-        </a>
-        <!-- Pi-hole -->
-        <a href="/pihole"
-           onclick="document.getElementById('integration-picker').classList.add('hidden')"
-           class="flex flex-col items-center gap-3 p-4 bg-[#0b0d14] border border-[#252836] hover:border-[#3a3d4e] rounded-xl transition-colors group cursor-pointer">
-          <div class="w-10 h-10 rounded-xl bg-red-500/10 flex items-center justify-center">
-            <svg class="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-                    d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/>
-            </svg>
-          </div>
-          <div class="text-center">
-            <p class="text-white text-sm font-medium group-hover:text-red-400 transition-colors">Pi-hole</p>
-            <p class="text-slate-600 text-[10px] mt-0.5">DNS Blocking</p>
-          </div>
-        </a>
-        <!-- AdGuard Home -->
-        <a href="/adguard"
-           onclick="document.getElementById('integration-picker').classList.add('hidden')"
-           class="flex flex-col items-center gap-3 p-4 bg-[#0b0d14] border border-[#252836] hover:border-[#3a3d4e] rounded-xl transition-colors group cursor-pointer">
-          <div class="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center">
-            <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-                    d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
-            </svg>
-          </div>
-          <div class="text-center">
-            <p class="text-white text-sm font-medium group-hover:text-emerald-400 transition-colors">AdGuard</p>
-            <p class="text-slate-600 text-[10px] mt-0.5">DNS Blocking</p>
-          </div>
-        </a>
-        <!-- Synology -->
-        <a href="/synology"
-           onclick="document.getElementById('integration-picker').classList.add('hidden')"
-           class="flex flex-col items-center gap-3 p-4 bg-[#0b0d14] border border-[#252836] hover:border-[#3a3d4e] rounded-xl transition-colors group cursor-pointer">
-          <div class="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center">
-            <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-                    d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2"/>
-            </svg>
-          </div>
-          <div class="text-center">
-            <p class="text-white text-sm font-medium group-hover:text-blue-400 transition-colors">Synology</p>
-            <p class="text-slate-600 text-[10px] mt-0.5">DSM NAS</p>
-          </div>
-        </a>
-        <!-- Firewall -->
-        <a href="/firewall"
-           onclick="document.getElementById('integration-picker').classList.add('hidden')"
-           class="flex flex-col items-center gap-3 p-4 bg-[#0b0d14] border border-[#252836] hover:border-[#3a3d4e] rounded-xl transition-colors group cursor-pointer">
-          <div class="w-10 h-10 rounded-xl bg-orange-500/10 flex items-center justify-center">
-            <svg class="w-5 h-5 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-                    d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
-            </svg>
-          </div>
-          <div class="text-center">
-            <p class="text-white text-sm font-medium group-hover:text-orange-400 transition-colors">Firewall</p>
-            <p class="text-slate-600 text-[10px] mt-0.5">OPNsense / pfSense</p>
-          </div>
-        </a>
-        <!-- Home Assistant -->
-        <a href="/hass"
-           onclick="document.getElementById('integration-picker').classList.add('hidden')"
-           class="flex flex-col items-center gap-3 p-4 bg-[#0b0d14] border border-[#252836] hover:border-[#3a3d4e] rounded-xl transition-colors group cursor-pointer">
-          <div class="w-10 h-10 rounded-xl bg-orange-500/10 flex items-center justify-center">
-            <svg class="w-5 h-5 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-                    d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
-            </svg>
-          </div>
-          <div class="text-center">
-            <p class="text-white text-sm font-medium group-hover:text-orange-400 transition-colors">Home Assistant</p>
-            <p class="text-slate-600 text-[10px] mt-0.5">Smart Home</p>
-          </div>
-        </a>
-        <!-- Gitea -->
-        <a href="/gitea"
-           onclick="document.getElementById('integration-picker').classList.add('hidden')"
-           class="flex flex-col items-center gap-3 p-4 bg-[#0b0d14] border border-[#252836] hover:border-[#3a3d4e] rounded-xl transition-colors group cursor-pointer">
-          <div class="w-10 h-10 rounded-xl bg-green-500/10 flex items-center justify-center">
-            <svg class="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-                    d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/>
-            </svg>
-          </div>
-          <div class="text-center">
-            <p class="text-white text-sm font-medium group-hover:text-green-400 transition-colors">Gitea</p>
-            <p class="text-slate-600 text-[10px] mt-0.5">Git Hosting</p>
-          </div>
-        </a>
-        <!-- phpIPAM -->
-        <a href="/phpipam"
-           onclick="document.getElementById('integration-picker').classList.add('hidden')"
-           class="flex flex-col items-center gap-3 p-4 bg-[#0b0d14] border border-[#252836] hover:border-[#3a3d4e] rounded-xl transition-colors group cursor-pointer">
-          <div class="w-10 h-10 rounded-xl bg-cyan-500/10 flex items-center justify-center">
-            <svg class="w-5 h-5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-                    d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
-            </svg>
-          </div>
-          <div class="text-center">
-            <p class="text-white text-sm font-medium group-hover:text-cyan-400 transition-colors">phpIPAM</p>
-            <p class="text-slate-600 text-[10px] mt-0.5">IP Management</p>
-          </div>
-        </a>
-        <!-- Speedtest -->
-        <a href="/speedtest"
-           onclick="document.getElementById('integration-picker').classList.add('hidden')"
-           class="flex flex-col items-center gap-3 p-4 bg-[#0b0d14] border border-[#252836] hover:border-[#3a3d4e] rounded-xl transition-colors group cursor-pointer">
-          <div class="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center">
-            <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13 10V3L4 14h7v7l9-11h-7z"/>
-            </svg>
-          </div>
-          <div class="text-center">
-            <p class="text-white text-sm font-medium group-hover:text-blue-400 transition-colors">Speedtest</p>
-            <p class="text-slate-600 text-[10px] mt-0.5">Internet Speed</p>
-          </div>
-        </a>
-        <!-- UPS / NUT -->
-        <a href="/ups"
-           onclick="document.getElementById('integration-picker').classList.add('hidden')"
-           class="flex flex-col items-center gap-3 p-4 bg-[#0b0d14] border border-[#252836] hover:border-[#3a3d4e] rounded-xl transition-colors group cursor-pointer">
-          <div class="w-10 h-10 rounded-xl bg-yellow-500/10 flex items-center justify-center">
-            <svg class="w-5 h-5 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-                    d="M3 10h18M3 14h18M6 6h.01M18 6h.01M6 18h.01M18 18h.01M5 6a2 2 0 104 0 2 2 0 00-4 0zm10 0a2 2 0 104 0 2 2 0 00-4 0z"/>
-            </svg>
-          </div>
-          <div class="text-center">
-            <p class="text-white text-sm font-medium group-hover:text-yellow-400 transition-colors">UPS / NUT</p>
-            <p class="text-slate-600 text-[10px] mt-0.5">Battery Backup</p>
-          </div>
-        </a>
-        <!-- Redfish / iDRAC -->
-        <a href="/redfish"
-           onclick="document.getElementById('integration-picker').classList.add('hidden')"
-           class="flex flex-col items-center gap-3 p-4 bg-[#0b0d14] border border-[#252836] hover:border-[#3a3d4e] rounded-xl transition-colors group cursor-pointer">
-          <div class="w-10 h-10 rounded-xl bg-purple-500/10 flex items-center justify-center">
-            <svg class="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-                    d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18"/>
-            </svg>
-          </div>
-          <div class="text-center">
-            <p class="text-white text-sm font-medium group-hover:text-purple-400 transition-colors">Redfish / iDRAC</p>
-            <p class="text-slate-600 text-[10px] mt-0.5">Server Hardware</p>
-          </div>
-        </a>
+        {% endfor %}
       </div>
     </div>
   </div>
 
   <script>
     function toggleIntegrations() {
-      const menu = document.getElementById('integrations-submenu');
-      const chevron = document.getElementById('integrations-chevron');
-      menu.classList.toggle('hidden');
-      chevron.classList.toggle('rotate-180');
+      document.getElementById('integrations-submenu').classList.toggle('hidden');
+      document.getElementById('integrations-chevron').classList.toggle('rotate-180');
     }
-
     function toggleSidebar() {
-      const sidebar = document.getElementById('sidebar');
-      const overlay = document.getElementById('sidebar-overlay');
-      sidebar.classList.toggle('open');
-      overlay.classList.toggle('open');
+      document.getElementById('sidebar').classList.toggle('open');
+      document.getElementById('sidebar-overlay').classList.toggle('open');
     }
-
-    // Close sidebar when a nav link is clicked on mobile
     document.addEventListener('DOMContentLoaded', () => {
-      const sidebar = document.getElementById('sidebar');
-      sidebar.querySelectorAll('a').forEach(a => {
-        a.addEventListener('click', () => {
-          if (window.innerWidth <= 768) toggleSidebar();
-        });
+      document.getElementById('sidebar').querySelectorAll('a').forEach(a => {
+        a.addEventListener('click', () => { if (window.innerWidth <= 768) toggleSidebar(); });
       });
     });
   </script>
