@@ -2,356 +2,447 @@
 {% block title %}Settings – {{ request.state.site_name }}{% endblock %}
 
 {% block content %}
-<div class="p-8">
+<div class="p-6 max-w-4xl mx-auto">
 
   <!-- Header -->
-  <div class="mb-8">
-    <h1 class="text-2xl font-bold text-white">Settings</h1>
-    <p class="text-slate-500 text-sm mt-0.5">Application configuration</p>
+  <div class="mb-6">
+    <h1 class="text-xl font-semibold text-white">Settings</h1>
+    <p class="text-sm text-slate-500 mt-0.5">System configuration</p>
   </div>
 
   {% if saved %}
-  <div class="mb-6 px-4 py-3 bg-emerald-500/10 border border-emerald-500/30 rounded-lg text-emerald-400 text-sm">
+  <div class="mb-5 flex items-center gap-2 px-4 py-3 bg-emerald-500/10 border border-emerald-500/20 rounded-lg text-emerald-400 text-sm">
+    <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+    </svg>
     Settings saved.
   </div>
   {% endif %}
 
-  <form method="post" action="/settings/save">
-    <div class="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-6">
+  <!-- Tab nav -->
+  <div class="flex gap-1 mb-6 bg-[#0c0e1a] border border-[#1c2033] rounded-xl p-1">
+    {% for id, label, icon in [
+      ('system',        'System',          'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z'),
+      ('monitoring',    'Monitoring',      'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z'),
+      ('import',        'Import',          'M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12'),
+      ('notifications', 'Notifications',  'M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9'),
+    ] %}
+    <button onclick="switchTab('{{ id }}')" id="tab-btn-{{ id }}"
+            class="tab-btn flex items-center gap-2 flex-1 justify-center px-3 py-2 rounded-lg text-sm font-medium transition-all">
+      <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="{{ icon }}"/>
+      </svg>
+      <span class="hidden sm:inline">{{ label }}</span>
+    </button>
+    {% endfor %}
+  </div>
 
-      <!-- LEFT COLUMN -->
-      <div class="space-y-6">
-
-        <!-- General -->
-        <div class="bg-[#13151f] border border-[#252836] rounded-xl p-6">
-          <h2 class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-5">General</h2>
-          <div class="space-y-4">
-            <div>
-              <label class="block text-sm font-medium text-slate-300 mb-1.5">Site name</label>
-              <input type="text" name="site_name" value="{{ site_name }}"
-                     class="w-full px-3 py-2 bg-[#0b0d14] border border-[#252836] rounded-lg text-white text-sm
-                            focus:outline-none focus:border-blue-500 transition-colors">
-            </div>
-            <div>
-              <label class="block text-sm font-medium text-slate-300 mb-1.5">Timezone</label>
-              <input type="text" name="timezone" value="{{ timezone }}" placeholder="Europe/Zurich"
-                     class="w-full px-3 py-2 bg-[#0b0d14] border border-[#252836] rounded-lg text-white text-sm
-                            focus:outline-none focus:border-blue-500 transition-colors">
-              <p class="text-slate-600 text-xs mt-1">e.g. UTC, Europe/Zurich, America/New_York</p>
-            </div>
+  <!-- ── Tab: System ─────────────────────────────────────────────────── -->
+  <div id="tab-system" class="tab-panel space-y-5">
+    <form method="post" action="/settings/save">
+      <div class="bg-[#0c0e1a] border border-[#1c2033] rounded-xl">
+        <div class="px-5 py-4 border-b border-[#1c2033]">
+          <h2 class="text-sm font-medium text-white">General</h2>
+          <p class="text-xs text-slate-600 mt-0.5">Basic application settings</p>
+        </div>
+        <div class="px-5 py-4 grid grid-cols-1 sm:grid-cols-2 gap-5">
+          <div>
+            <label class="block text-xs font-medium text-slate-400 mb-1.5">Site name</label>
+            <input type="text" name="site_name" value="{{ site_name }}"
+                   class="w-full px-3 py-2.5 bg-[#07090f] border border-[#1c2033] rounded-lg text-white text-sm
+                          focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/20 transition-all">
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-slate-400 mb-1.5">Timezone</label>
+            <input type="text" name="timezone" value="{{ timezone }}" placeholder="Europe/Zurich"
+                   class="w-full px-3 py-2.5 bg-[#07090f] border border-[#1c2033] rounded-lg text-white text-sm
+                          focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/20 transition-all">
+            <p class="text-slate-700 text-xs mt-1">e.g. UTC, Europe/Zurich, America/New_York</p>
           </div>
         </div>
-
-        <!-- Poll intervals -->
-        <div class="bg-[#13151f] border border-[#252836] rounded-xl p-6">
-          <h2 class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-5">Poll intervals</h2>
-          <div class="grid grid-cols-2 gap-4">
-            <div>
-              <label class="block text-sm font-medium text-slate-300 mb-1.5">Ping (seconds)</label>
-              <input type="number" name="ping_interval" value="{{ ping_interval }}" min="10" max="3600"
-                     class="w-full px-3 py-2 bg-[#0b0d14] border border-[#252836] rounded-lg text-white text-sm
-                            focus:outline-none focus:border-blue-500 transition-colors">
-              <p class="text-slate-600 text-xs mt-1">10 – 3600 s</p>
-            </div>
-            <div>
-              <label class="block text-sm font-medium text-slate-300 mb-1.5">Proxmox (seconds)</label>
-              <input type="number" name="proxmox_interval" value="{{ proxmox_interval }}" min="10" max="3600"
-                     class="w-full px-3 py-2 bg-[#0b0d14] border border-[#252836] rounded-lg text-white text-sm
-                            focus:outline-none focus:border-blue-500 transition-colors">
-              <p class="text-slate-600 text-xs mt-1">10 – 3600 s</p>
-            </div>
-          </div>
-        </div>
-
-        <!-- Data retention -->
-        <div class="bg-[#13151f] border border-[#252836] rounded-xl p-6">
-          <h2 class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-5">Data retention</h2>
-          <div class="grid grid-cols-3 gap-4">
-            <div>
-              <label class="block text-sm font-medium text-slate-300 mb-1.5">Ping results (days)</label>
-              <input type="number" name="ping_retention" value="{{ ping_retention }}" min="1" max="365"
-                     class="w-full px-3 py-2 bg-[#0b0d14] border border-[#252836] rounded-lg text-white text-sm
-                            focus:outline-none focus:border-blue-500 transition-colors">
-              <p class="text-slate-600 text-xs mt-1">1 – 365 days</p>
-            </div>
-            <div>
-              <label class="block text-sm font-medium text-slate-300 mb-1.5">Proxmox snapshots (days)</label>
-              <input type="number" name="proxmox_retention" value="{{ proxmox_retention }}" min="1" max="90"
-                     class="w-full px-3 py-2 bg-[#0b0d14] border border-[#252836] rounded-lg text-white text-sm
-                            focus:outline-none focus:border-blue-500 transition-colors">
-              <p class="text-slate-600 text-xs mt-1">1 – 90 days</p>
-            </div>
-            <div>
-              <label class="block text-sm font-medium text-slate-300 mb-1.5">Integration snapshots (days)</label>
-              <input type="number" name="integration_retention" value="{{ integration_retention }}" min="1" max="90"
-                     class="w-full px-3 py-2 bg-[#0b0d14] border border-[#252836] rounded-lg text-white text-sm
-                            focus:outline-none focus:border-blue-500 transition-colors">
-              <p class="text-slate-600 text-xs mt-1">1 – 90 days (alle Integrationen)</p>
-            </div>
-          </div>
-        </div>
-
       </div>
 
-      <!-- RIGHT COLUMN -->
-      <div class="space-y-6">
+      <!-- Hidden fields to satisfy /settings/save (not changed in system tab) -->
+      <input type="hidden" name="ping_interval" value="{{ ping_interval }}">
+      <input type="hidden" name="proxmox_interval" value="{{ proxmox_interval }}">
+      <input type="hidden" name="ping_retention" value="{{ ping_retention }}">
+      <input type="hidden" name="proxmox_retention" value="{{ proxmox_retention }}">
+      <input type="hidden" name="integration_retention" value="{{ integration_retention }}">
+      <input type="hidden" name="anomaly_threshold" value="{{ anomaly_threshold }}">
+      <input type="hidden" name="latency_threshold" value="{{ latency_threshold }}">
+      <input type="hidden" name="cpu_threshold" value="{{ cpu_threshold }}">
+      <input type="hidden" name="ram_threshold" value="{{ ram_threshold }}">
+      <input type="hidden" name="disk_threshold" value="{{ disk_threshold }}">
 
-        <!-- Alert thresholds -->
-        <div class="bg-[#13151f] border border-[#252836] rounded-xl p-6">
-          <h2 class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Alert thresholds</h2>
-          <p class="text-slate-600 text-xs mb-5">Global defaults — individual hosts can override the latency threshold.</p>
-          <div class="space-y-4">
-            <div>
-              <label class="block text-sm font-medium text-slate-300 mb-1.5">Ping latency threshold (ms)</label>
-              <input type="number" name="latency_threshold" value="{{ latency_threshold }}" min="1" max="10000"
-                     placeholder="e.g. 500 (leave empty to disable)"
-                     class="w-full px-3 py-2 bg-[#0b0d14] border border-[#252836] rounded-lg text-white text-sm
-                            focus:outline-none focus:border-blue-500 transition-colors">
-              <p class="text-slate-600 text-xs mt-1">Alert when latency exceeds this value. Empty = no global threshold.</p>
-            </div>
-            <div>
-              <label class="block text-sm font-medium text-slate-300 mb-2">Proxmox resource thresholds (%)</label>
-              <div class="grid grid-cols-3 gap-3">
-                <div>
-                  <p class="text-xs text-slate-500 mb-1">CPU</p>
-                  <input type="number" name="cpu_threshold" value="{{ cpu_threshold }}" min="1" max="100"
-                         class="w-full px-3 py-2 bg-[#0b0d14] border border-[#252836] rounded-lg text-white text-sm
-                                focus:outline-none focus:border-blue-500 transition-colors">
-                </div>
-                <div>
-                  <p class="text-xs text-slate-500 mb-1">RAM</p>
-                  <input type="number" name="ram_threshold" value="{{ ram_threshold }}" min="1" max="100"
-                         class="w-full px-3 py-2 bg-[#0b0d14] border border-[#252836] rounded-lg text-white text-sm
-                                focus:outline-none focus:border-blue-500 transition-colors">
-                </div>
-                <div>
-                  <p class="text-xs text-slate-500 mb-1">Disk</p>
-                  <input type="number" name="disk_threshold" value="{{ disk_threshold }}" min="1" max="100"
-                         class="w-full px-3 py-2 bg-[#0b0d14] border border-[#252836] rounded-lg text-white text-sm
-                                focus:outline-none focus:border-blue-500 transition-colors">
-                </div>
+      <div class="mt-4">
+        <button type="submit"
+                class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-lg transition-colors">
+          Save
+        </button>
+      </div>
+    </form>
+  </div>
+
+  <!-- ── Tab: Monitoring ─────────────────────────────────────────────── -->
+  <div id="tab-monitoring" class="tab-panel hidden space-y-5">
+    <form method="post" action="/settings/save">
+      <!-- Hidden: system fields unchanged -->
+      <input type="hidden" name="site_name" value="{{ site_name }}">
+      <input type="hidden" name="timezone" value="{{ timezone }}">
+
+      <!-- Poll intervals -->
+      <div class="bg-[#0c0e1a] border border-[#1c2033] rounded-xl">
+        <div class="px-5 py-4 border-b border-[#1c2033]">
+          <h2 class="text-sm font-medium text-white">Poll intervals</h2>
+          <p class="text-xs text-slate-600 mt-0.5">How often each collector runs</p>
+        </div>
+        <div class="px-5 py-4 grid grid-cols-2 gap-5">
+          <div>
+            <label class="block text-xs font-medium text-slate-400 mb-1.5">Ping / Hosts (seconds)</label>
+            <input type="number" name="ping_interval" value="{{ ping_interval }}" min="10" max="3600"
+                   class="w-full px-3 py-2.5 bg-[#07090f] border border-[#1c2033] rounded-lg text-white text-sm
+                          focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/20 transition-all">
+            <p class="text-slate-700 text-xs mt-1">10 – 3600 s</p>
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-slate-400 mb-1.5">Proxmox (seconds)</label>
+            <input type="number" name="proxmox_interval" value="{{ proxmox_interval }}" min="10" max="3600"
+                   class="w-full px-3 py-2.5 bg-[#07090f] border border-[#1c2033] rounded-lg text-white text-sm
+                          focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/20 transition-all">
+            <p class="text-slate-700 text-xs mt-1">10 – 3600 s</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Data retention -->
+      <div class="bg-[#0c0e1a] border border-[#1c2033] rounded-xl">
+        <div class="px-5 py-4 border-b border-[#1c2033]">
+          <h2 class="text-sm font-medium text-white">Data retention</h2>
+          <p class="text-xs text-slate-600 mt-0.5">How long historical data is kept</p>
+        </div>
+        <div class="px-5 py-4 grid grid-cols-3 gap-5">
+          <div>
+            <label class="block text-xs font-medium text-slate-400 mb-1.5">Ping results (days)</label>
+            <input type="number" name="ping_retention" value="{{ ping_retention }}" min="1" max="365"
+                   class="w-full px-3 py-2.5 bg-[#07090f] border border-[#1c2033] rounded-lg text-white text-sm
+                          focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/20 transition-all">
+            <p class="text-slate-700 text-xs mt-1">1 – 365 d</p>
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-slate-400 mb-1.5">Proxmox snapshots (days)</label>
+            <input type="number" name="proxmox_retention" value="{{ proxmox_retention }}" min="1" max="90"
+                   class="w-full px-3 py-2.5 bg-[#07090f] border border-[#1c2033] rounded-lg text-white text-sm
+                          focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/20 transition-all">
+            <p class="text-slate-700 text-xs mt-1">1 – 90 d</p>
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-slate-400 mb-1.5">Integration snapshots (days)</label>
+            <input type="number" name="integration_retention" value="{{ integration_retention }}" min="1" max="90"
+                   class="w-full px-3 py-2.5 bg-[#07090f] border border-[#1c2033] rounded-lg text-white text-sm
+                          focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/20 transition-all">
+            <p class="text-slate-700 text-xs mt-1">1 – 90 d</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Alert thresholds -->
+      <div class="bg-[#0c0e1a] border border-[#1c2033] rounded-xl">
+        <div class="px-5 py-4 border-b border-[#1c2033]">
+          <h2 class="text-sm font-medium text-white">Alert thresholds</h2>
+          <p class="text-xs text-slate-600 mt-0.5">Global defaults — individual hosts can override the latency threshold</p>
+        </div>
+        <div class="px-5 py-4 space-y-5">
+          <div>
+            <label class="block text-xs font-medium text-slate-400 mb-1.5">Ping latency threshold (ms)</label>
+            <input type="number" name="latency_threshold" value="{{ latency_threshold }}"
+                   min="1" max="10000" placeholder="Leave empty to disable"
+                   class="w-full max-w-xs px-3 py-2.5 bg-[#07090f] border border-[#1c2033] rounded-lg text-white text-sm
+                          focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/20 transition-all">
+            <p class="text-slate-700 text-xs mt-1">Alert when latency exceeds this value. Empty = no global threshold.</p>
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-slate-400 mb-2">Proxmox resource thresholds (%)</label>
+            <div class="grid grid-cols-3 gap-4 max-w-sm">
+              <div>
+                <p class="text-xs text-slate-600 mb-1">CPU</p>
+                <input type="number" name="cpu_threshold" value="{{ cpu_threshold }}" min="1" max="100"
+                       class="w-full px-3 py-2.5 bg-[#07090f] border border-[#1c2033] rounded-lg text-white text-sm
+                              focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/20 transition-all">
+              </div>
+              <div>
+                <p class="text-xs text-slate-600 mb-1">RAM</p>
+                <input type="number" name="ram_threshold" value="{{ ram_threshold }}" min="1" max="100"
+                       class="w-full px-3 py-2.5 bg-[#07090f] border border-[#1c2033] rounded-lg text-white text-sm
+                              focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/20 transition-all">
+              </div>
+              <div>
+                <p class="text-xs text-slate-600 mb-1">Disk</p>
+                <input type="number" name="disk_threshold" value="{{ disk_threshold }}" min="1" max="100"
+                       class="w-full px-3 py-2.5 bg-[#07090f] border border-[#1c2033] rounded-lg text-white text-sm
+                              focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/20 transition-all">
               </div>
             </div>
           </div>
         </div>
+      </div>
 
-        <!-- Anomaly detection -->
-        <div class="bg-[#13151f] border border-[#252836] rounded-xl p-6">
-          <h2 class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Anomaly detection</h2>
-          <p class="text-slate-600 text-xs mb-5">Flags metrics that deviate significantly from their 24h average.</p>
+      <!-- Anomaly detection -->
+      <div class="bg-[#0c0e1a] border border-[#1c2033] rounded-xl">
+        <div class="px-5 py-4 border-b border-[#1c2033]">
+          <h2 class="text-sm font-medium text-white">Anomaly detection</h2>
+          <p class="text-xs text-slate-600 mt-0.5">Flags metrics that deviate significantly from their 24h average</p>
+        </div>
+        <div class="px-5 py-4">
+          <label class="block text-xs font-medium text-slate-400 mb-1.5">Multiplier (× 24h average)</label>
+          <input type="number" name="anomaly_threshold" value="{{ anomaly_threshold }}"
+                 min="1.5" max="10" step="0.1"
+                 class="w-full max-w-xs px-3 py-2.5 bg-[#07090f] border border-[#1c2033] rounded-lg text-white text-sm
+                        focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/20 transition-all">
+          <p class="text-slate-700 text-xs mt-1">2.0 = alert when a metric is &gt;2× its 24h average. Range: 1.5 – 10.</p>
+        </div>
+      </div>
+
+      <div>
+        <button type="submit"
+                class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-lg transition-colors">
+          Save
+        </button>
+      </div>
+    </form>
+  </div>
+
+  <!-- ── Tab: Import ─────────────────────────────────────────────────── -->
+  <div id="tab-import" class="tab-panel hidden space-y-5">
+    <div class="bg-[#0c0e1a] border border-[#1c2033] rounded-xl">
+      <div class="px-5 py-4 border-b border-[#1c2033]">
+        <div class="flex items-center gap-2">
+          <h2 class="text-sm font-medium text-white">phpIPAM</h2>
+          <span class="px-2 py-0.5 rounded-full text-[10px] bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">Optional</span>
+        </div>
+        <p class="text-xs text-slate-600 mt-0.5">Import IP addresses from phpIPAM as monitored hosts. Only new entries are added.</p>
+      </div>
+
+      <form method="post" action="/settings/phpipam/save">
+        <div class="px-5 py-4 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
           <div>
-            <label class="block text-sm font-medium text-slate-300 mb-1.5">Multiplier (× 24h average)</label>
-            <input type="number" name="anomaly_threshold" value="{{ anomaly_threshold }}"
-                   min="1.5" max="10" step="0.1"
-                   class="w-full px-3 py-2 bg-[#0b0d14] border border-[#252836] rounded-lg text-white text-sm
-                          focus:outline-none focus:border-blue-500 transition-colors">
-            <p class="text-slate-600 text-xs mt-1">
-              2.0 = alert when a metric is &gt; 2× its 24h average. Range: 1.5 – 10.
-            </p>
+            <label class="block text-xs font-medium text-slate-400 mb-1.5">phpIPAM URL</label>
+            <input type="text" name="phpipam_url" value="{{ phpipam_url }}" placeholder="http://phpipam.local"
+                   class="w-full px-3 py-2.5 bg-[#07090f] border border-[#1c2033] rounded-lg text-white text-sm
+                          focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/20 transition-all">
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-slate-400 mb-1.5">App ID</label>
+            <input type="text" name="phpipam_app_id" value="{{ phpipam_app_id }}" placeholder="monitoring"
+                   class="w-full px-3 py-2.5 bg-[#07090f] border border-[#1c2033] rounded-lg text-white text-sm
+                          focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/20 transition-all">
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-slate-400 mb-1.5">Username</label>
+            <input type="text" name="phpipam_username" value="{{ phpipam_username }}"
+                   placeholder="admin (leave empty for App-Code mode)" autocomplete="off"
+                   class="w-full px-3 py-2.5 bg-[#07090f] border border-[#1c2033] rounded-lg text-white text-sm
+                          focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/20 transition-all">
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-slate-400 mb-1.5">Password</label>
+            <input type="password" name="phpipam_password" autocomplete="new-password"
+                   placeholder="{{ '••••••••' if phpipam_has_pw else 'Enter password' }}"
+                   class="w-full px-3 py-2.5 bg-[#07090f] border border-[#1c2033] rounded-lg text-white text-sm
+                          focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/20 transition-all">
+            {% if phpipam_has_pw %}
+            <p class="text-slate-700 text-xs mt-1">Password set — leave empty to keep current</p>
+            {% endif %}
           </div>
         </div>
 
-      </div>
-    </div>
-
-    <button type="submit"
-            class="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium rounded-lg transition-colors">
-      Save settings
-    </button>
-  </form>
-
-  <!-- phpIPAM Integration -->
-  <div class="mt-10">
-    <div class="flex items-center gap-2 mb-1">
-      <h2 class="text-xs font-semibold text-slate-500 uppercase tracking-wider">phpIPAM Integration</h2>
-      <span class="px-2 py-0.5 rounded-full text-[10px] bg-slate-500/10 text-slate-500 border border-slate-600/30">Optional</span>
-    </div>
-    <p class="text-slate-600 text-xs mb-5">
-      Import IP addresses from phpIPAM as monitored hosts. Only new entries are added — existing hosts are not modified.
-    </p>
-
-    <form method="post" action="/settings/phpipam/save" class="bg-[#13151f] border border-[#252836] rounded-xl p-6">
-      <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mb-4">
-        <div>
-          <label class="block text-sm font-medium text-slate-300 mb-1.5">phpIPAM URL</label>
-          <input type="text" name="phpipam_url" value="{{ phpipam_url }}"
-                 placeholder="http://phpipam.local"
-                 class="w-full px-3 py-2 bg-[#0b0d14] border border-[#252836] rounded-lg text-white text-sm
-                        focus:outline-none focus:border-blue-500 transition-colors">
+        <div class="px-5 pb-4 flex flex-wrap items-end gap-5">
+          <div>
+            <label class="block text-xs font-medium text-slate-400 mb-1.5">Auto-sync interval (hours)</label>
+            <input type="number" name="phpipam_sync_hours" value="{{ phpipam_sync_hours }}"
+                   min="0" max="168" placeholder="0 = disabled"
+                   class="w-36 px-3 py-2.5 bg-[#07090f] border border-[#1c2033] rounded-lg text-white text-sm
+                          focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/20 transition-all">
+            <p class="text-slate-700 text-xs mt-1">0 = no automatic sync</p>
+          </div>
+          <div class="pb-0.5">
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" name="phpipam_verify_ssl" {% if phpipam_verify_ssl == "1" %}checked{% endif %}
+                     class="w-4 h-4 rounded border-[#1c2033] bg-[#07090f] accent-indigo-500">
+              <span class="text-sm text-slate-400">Verify SSL certificate</span>
+            </label>
+          </div>
         </div>
-        <div>
-          <label class="block text-sm font-medium text-slate-300 mb-1.5">App ID</label>
-          <input type="text" name="phpipam_app_id" value="{{ phpipam_app_id }}"
-                 placeholder="monitoring"
-                 class="w-full px-3 py-2 bg-[#0b0d14] border border-[#252836] rounded-lg text-white text-sm
-                        focus:outline-none focus:border-blue-500 transition-colors">
-        </div>
-        <div>
-          <label class="block text-sm font-medium text-slate-300 mb-1.5">Username</label>
-          <input type="text" name="phpipam_username" value="{{ phpipam_username }}"
-                 placeholder="admin (leave empty for App-Code mode)"
-                 autocomplete="off"
-                 class="w-full px-3 py-2 bg-[#0b0d14] border border-[#252836] rounded-lg text-white text-sm
-                        focus:outline-none focus:border-blue-500 transition-colors">
-        </div>
-        <div>
-          <label class="block text-sm font-medium text-slate-300 mb-1.5">Password</label>
-          <input type="password" name="phpipam_password"
-                 placeholder="{% if phpipam_has_pw %}••••••••{% else %}Enter password{% endif %}"
-                 autocomplete="new-password"
-                 class="w-full px-3 py-2 bg-[#0b0d14] border border-[#252836] rounded-lg text-white text-sm
-                        focus:outline-none focus:border-blue-500 transition-colors">
-          {% if phpipam_has_pw %}
-          <p class="text-slate-600 text-xs mt-1">Password set — leave empty to keep current</p>
+
+        <div class="px-5 pb-5 flex items-center gap-3">
+          <button type="submit"
+                  class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-lg transition-colors">
+            Save
+          </button>
+          {% if phpipam_url and phpipam_app_id %}
+          <button type="button" id="phpipam-sync-btn" onclick="runPhpIpamSync()"
+                  class="flex items-center gap-2 px-4 py-2 bg-white/[0.04] hover:bg-white/[0.07] border border-[#1c2033] text-slate-300 text-sm font-medium rounded-lg transition-colors">
+            <svg id="phpipam-spin" class="w-3.5 h-3.5 hidden animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+            </svg>
+            Sync now
+          </button>
           {% endif %}
         </div>
+      </form>
+    </div>
+
+    <div id="phpipam-result" class="hidden px-4 py-3 rounded-lg text-sm border"></div>
+  </div>
+
+  <!-- ── Tab: Notifications ──────────────────────────────────────────── -->
+  <div id="tab-notifications" class="tab-panel hidden">
+    <form method="post" action="/settings/notifications/save" class="space-y-5">
+
+      <!-- Enable -->
+      <div class="bg-[#0c0e1a] border border-[#1c2033] rounded-xl px-5 py-4">
+        <label class="flex items-center gap-3 cursor-pointer">
+          <div class="relative">
+            <input type="checkbox" name="notify_enabled" value="on" {% if notify_enabled == '1' %}checked{% endif %}
+                   class="sr-only peer">
+            <div class="w-9 h-5 bg-[#1c2033] peer-checked:bg-indigo-600 rounded-full transition-colors"></div>
+            <div class="absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform peer-checked:translate-x-4"></div>
+          </div>
+          <div>
+            <p class="text-sm font-medium text-slate-300">Enable notifications</p>
+            <p class="text-xs text-slate-600">Receive alerts on host state changes</p>
+          </div>
+        </label>
       </div>
 
-      <div class="flex flex-wrap items-end gap-4 mb-5">
-        <div>
-          <label class="block text-sm font-medium text-slate-300 mb-1.5">Auto-sync interval (hours)</label>
-          <input type="number" name="phpipam_sync_hours" value="{{ phpipam_sync_hours }}"
-                 min="0" max="168" placeholder="0 = disabled"
-                 class="w-40 px-3 py-2 bg-[#0b0d14] border border-[#252836] rounded-lg text-white text-sm
-                        focus:outline-none focus:border-blue-500 transition-colors">
-          <p class="text-slate-600 text-xs mt-1">0 = no automatic sync</p>
+      <!-- Telegram -->
+      <div class="bg-[#0c0e1a] border border-[#1c2033] rounded-xl">
+        <div class="px-5 py-4 border-b border-[#1c2033] flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <div class="w-7 h-7 rounded-lg bg-sky-500/15 flex items-center justify-center">
+              <svg class="w-4 h-4 text-sky-400" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/>
+              </svg>
+            </div>
+            <h3 class="text-sm font-medium text-white">Telegram</h3>
+          </div>
+          <button type="button" onclick="testNotification('telegram')"
+                  class="px-3 py-1.5 text-xs text-slate-400 hover:text-white bg-white/[0.04] hover:bg-white/[0.08] border border-[#1c2033] rounded-lg transition-colors">
+            Send test
+          </button>
         </div>
-        <div class="pb-1">
-          <label class="flex items-center gap-2 cursor-pointer">
-            <input type="checkbox" name="phpipam_verify_ssl"
-                   {% if phpipam_verify_ssl == "1" %}checked{% endif %}
-                   class="w-4 h-4 rounded border-[#252836] bg-[#0b0d14] text-blue-500 accent-blue-500">
-            <span class="text-sm text-slate-300">Verify SSL certificate</span>
-          </label>
+        <div class="px-5 py-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-medium text-slate-400 mb-1.5">Bot Token</label>
+            <input type="text" name="telegram_bot_token" value="{{ telegram_bot_token }}"
+                   placeholder="1234567890:ABCdef..."
+                   class="w-full px-3 py-2.5 bg-[#07090f] border border-[#1c2033] rounded-lg text-white text-sm
+                          focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/20 transition-all">
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-slate-400 mb-1.5">Chat ID</label>
+            <input type="text" name="telegram_chat_id" value="{{ telegram_chat_id }}"
+                   placeholder="-100123456789"
+                   class="w-full px-3 py-2.5 bg-[#07090f] border border-[#1c2033] rounded-lg text-white text-sm
+                          focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/20 transition-all">
+          </div>
+        </div>
+      </div>
+
+      <!-- Discord -->
+      <div class="bg-[#0c0e1a] border border-[#1c2033] rounded-xl">
+        <div class="px-5 py-4 border-b border-[#1c2033] flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <div class="w-7 h-7 rounded-lg bg-indigo-500/15 flex items-center justify-center">
+              <svg class="w-4 h-4 text-indigo-400" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057.1 18.08.113 18.1.132 18.113a19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03z"/>
+              </svg>
+            </div>
+            <h3 class="text-sm font-medium text-white">Discord</h3>
+          </div>
+          <button type="button" onclick="testNotification('discord')"
+                  class="px-3 py-1.5 text-xs text-slate-400 hover:text-white bg-white/[0.04] hover:bg-white/[0.08] border border-[#1c2033] rounded-lg transition-colors">
+            Send test
+          </button>
+        </div>
+        <div class="px-5 py-4">
+          <label class="block text-xs font-medium text-slate-400 mb-1.5">Webhook URL</label>
+          <input type="text" name="discord_webhook_url" value="{{ discord_webhook_url }}"
+                 placeholder="https://discord.com/api/webhooks/..."
+                 class="w-full px-3 py-2.5 bg-[#07090f] border border-[#1c2033] rounded-lg text-white text-sm
+                        focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/20 transition-all">
+        </div>
+      </div>
+
+      <!-- Email -->
+      <div class="bg-[#0c0e1a] border border-[#1c2033] rounded-xl">
+        <div class="px-5 py-4 border-b border-[#1c2033] flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <div class="w-7 h-7 rounded-lg bg-emerald-500/15 flex items-center justify-center">
+              <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+              </svg>
+            </div>
+            <h3 class="text-sm font-medium text-white">Email (SMTP)</h3>
+          </div>
+          <button type="button" onclick="testNotification('email')"
+                  class="px-3 py-1.5 text-xs text-slate-400 hover:text-white bg-white/[0.04] hover:bg-white/[0.08] border border-[#1c2033] rounded-lg transition-colors">
+            Send test
+          </button>
+        </div>
+        <div class="px-5 py-4 space-y-4">
+          <div class="grid grid-cols-3 gap-4">
+            <div class="col-span-2">
+              <label class="block text-xs font-medium text-slate-400 mb-1.5">SMTP Host</label>
+              <input type="text" name="smtp_host" value="{{ smtp_host }}" placeholder="smtp.gmail.com"
+                     class="w-full px-3 py-2.5 bg-[#07090f] border border-[#1c2033] rounded-lg text-white text-sm
+                            focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/20 transition-all">
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-400 mb-1.5">Port</label>
+              <input type="number" name="smtp_port" value="{{ smtp_port }}" placeholder="587"
+                     class="w-full px-3 py-2.5 bg-[#07090f] border border-[#1c2033] rounded-lg text-white text-sm
+                            focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/20 transition-all">
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs font-medium text-slate-400 mb-1.5">Username</label>
+              <input type="text" name="smtp_user" value="{{ smtp_user }}"
+                     class="w-full px-3 py-2.5 bg-[#07090f] border border-[#1c2033] rounded-lg text-white text-sm
+                            focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/20 transition-all">
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-400 mb-1.5">Password{% if smtp_has_pw %} <span class="text-slate-600 font-normal">(saved)</span>{% endif %}</label>
+              <input type="password" name="smtp_password" placeholder="{{ '••••••••' if smtp_has_pw else '' }}"
+                     class="w-full px-3 py-2.5 bg-[#07090f] border border-[#1c2033] rounded-lg text-white text-sm
+                            focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/20 transition-all">
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs font-medium text-slate-400 mb-1.5">From</label>
+              <input type="email" name="smtp_from" value="{{ smtp_from }}" placeholder="vigil@example.com"
+                     class="w-full px-3 py-2.5 bg-[#07090f] border border-[#1c2033] rounded-lg text-white text-sm
+                            focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/20 transition-all">
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-400 mb-1.5">To</label>
+              <input type="email" name="smtp_to" value="{{ smtp_to }}" placeholder="admin@example.com"
+                     class="w-full px-3 py-2.5 bg-[#07090f] border border-[#1c2033] rounded-lg text-white text-sm
+                            focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/20 transition-all">
+            </div>
+          </div>
         </div>
       </div>
 
       <div class="flex items-center gap-3">
         <button type="submit"
-                class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium rounded-lg transition-colors">
+                class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-lg transition-colors">
           Save
         </button>
-        {% if phpipam_url and phpipam_app_id %}
-        <button type="button" id="phpipam-sync-btn" onclick="runPhpIpamSync()"
-                class="px-4 py-2 bg-[#1e2030] hover:bg-[#252836] text-slate-300 text-sm font-medium rounded-lg transition-colors flex items-center gap-2 border border-[#252836]">
-          <svg id="phpipam-spin" class="w-3.5 h-3.5 hidden animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
-          </svg>
-          Sync now
-        </button>
-        {% endif %}
+        <span id="test-result" class="text-sm"></span>
       </div>
     </form>
-
-    <div id="phpipam-result" class="hidden mt-3 px-4 py-3 rounded-lg text-sm border"></div>
-  </div>
-
-  <!-- Notifications -->
-  <div class="mt-10">
-    <div class="bg-[#13151f] border border-[#252836] rounded-xl p-6">
-      <h2 class="text-white font-semibold mb-1">Benachrichtigungen</h2>
-      <p class="text-slate-500 text-sm mb-5">Alerts per Telegram, Discord oder Email erhalten</p>
-
-      <form method="post" action="/settings/notifications/save" class="space-y-6">
-        <!-- Enable toggle -->
-        <label class="flex items-center gap-3 cursor-pointer">
-          <input type="checkbox" name="notify_enabled" value="on" {% if notify_enabled == '1' %}checked{% endif %}
-                 class="w-4 h-4 rounded border-[#252836] bg-[#0b0d14] text-blue-600">
-          <span class="text-sm text-slate-300">Benachrichtigungen aktivieren</span>
-        </label>
-
-        <!-- Telegram -->
-        <div>
-          <p class="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">Telegram</p>
-          <div class="grid grid-cols-2 gap-3">
-            <div>
-              <label class="block text-xs text-slate-400 mb-1">Bot Token</label>
-              <input type="text" name="telegram_bot_token" value="{{ telegram_bot_token }}"
-                     placeholder="1234567890:ABCdef..."
-                     class="w-full px-3 py-2 bg-[#0b0d14] border border-[#252836] rounded-lg text-white text-sm focus:outline-none focus:border-blue-500">
-            </div>
-            <div>
-              <label class="block text-xs text-slate-400 mb-1">Chat ID</label>
-              <input type="text" name="telegram_chat_id" value="{{ telegram_chat_id }}"
-                     placeholder="-100123456789"
-                     class="w-full px-3 py-2 bg-[#0b0d14] border border-[#252836] rounded-lg text-white text-sm focus:outline-none focus:border-blue-500">
-            </div>
-          </div>
-        </div>
-
-        <!-- Discord -->
-        <div>
-          <p class="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">Discord</p>
-          <label class="block text-xs text-slate-400 mb-1">Webhook URL</label>
-          <input type="text" name="discord_webhook_url" value="{{ discord_webhook_url }}"
-                 placeholder="https://discord.com/api/webhooks/..."
-                 class="w-full px-3 py-2 bg-[#0b0d14] border border-[#252836] rounded-lg text-white text-sm focus:outline-none focus:border-blue-500">
-        </div>
-
-        <!-- Email -->
-        <div>
-          <p class="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">Email (SMTP)</p>
-          <div class="grid grid-cols-3 gap-3 mb-3">
-            <div class="col-span-2">
-              <label class="block text-xs text-slate-400 mb-1">SMTP Host</label>
-              <input type="text" name="smtp_host" value="{{ smtp_host }}" placeholder="smtp.gmail.com"
-                     class="w-full px-3 py-2 bg-[#0b0d14] border border-[#252836] rounded-lg text-white text-sm focus:outline-none focus:border-blue-500">
-            </div>
-            <div>
-              <label class="block text-xs text-slate-400 mb-1">Port</label>
-              <input type="number" name="smtp_port" value="{{ smtp_port }}" placeholder="587"
-                     class="w-full px-3 py-2 bg-[#0b0d14] border border-[#252836] rounded-lg text-white text-sm focus:outline-none focus:border-blue-500">
-            </div>
-          </div>
-          <div class="grid grid-cols-2 gap-3 mb-3">
-            <div>
-              <label class="block text-xs text-slate-400 mb-1">Benutzername</label>
-              <input type="text" name="smtp_user" value="{{ smtp_user }}"
-                     class="w-full px-3 py-2 bg-[#0b0d14] border border-[#252836] rounded-lg text-white text-sm focus:outline-none focus:border-blue-500">
-            </div>
-            <div>
-              <label class="block text-xs text-slate-400 mb-1">Passwort{% if smtp_has_pw %} (gespeichert){% endif %}</label>
-              <input type="password" name="smtp_password" placeholder="{% if smtp_has_pw %}••••••••{% endif %}"
-                     class="w-full px-3 py-2 bg-[#0b0d14] border border-[#252836] rounded-lg text-white text-sm focus:outline-none focus:border-blue-500">
-            </div>
-          </div>
-          <div class="grid grid-cols-2 gap-3">
-            <div>
-              <label class="block text-xs text-slate-400 mb-1">Absender</label>
-              <input type="email" name="smtp_from" value="{{ smtp_from }}" placeholder="vigil@example.com"
-                     class="w-full px-3 py-2 bg-[#0b0d14] border border-[#252836] rounded-lg text-white text-sm focus:outline-none focus:border-blue-500">
-            </div>
-            <div>
-              <label class="block text-xs text-slate-400 mb-1">Empfänger</label>
-              <input type="email" name="smtp_to" value="{{ smtp_to }}" placeholder="admin@example.com"
-                     class="w-full px-3 py-2 bg-[#0b0d14] border border-[#252836] rounded-lg text-white text-sm focus:outline-none focus:border-blue-500">
-            </div>
-          </div>
-        </div>
-
-        <div class="flex items-center gap-3 pt-2">
-          <button type="submit"
-                  class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium rounded-lg transition-colors">
-            Speichern
-          </button>
-          <!-- Test buttons -->
-          <button type="button" onclick="testNotification('telegram')"
-                  class="px-3 py-2 bg-[#252836] hover:bg-[#2f3243] text-slate-300 text-sm rounded-lg transition-colors">
-            Telegram testen
-          </button>
-          <button type="button" onclick="testNotification('discord')"
-                  class="px-3 py-2 bg-[#252836] hover:bg-[#2f3243] text-slate-300 text-sm rounded-lg transition-colors">
-            Discord testen
-          </button>
-          <button type="button" onclick="testNotification('email')"
-                  class="px-3 py-2 bg-[#252836] hover:bg-[#2f3243] text-slate-300 text-sm rounded-lg transition-colors">
-            Email testen
-          </button>
-          <span id="test-result" class="text-sm"></span>
-        </div>
-      </form>
-    </div>
   </div>
 
 </div>
@@ -359,11 +450,30 @@
 
 {% block scripts %}
 <script>
+// Tab colours
+const ACTIVE   = 'bg-white/[0.06] text-white shadow-sm';
+const INACTIVE = 'text-slate-500 hover:text-slate-300 hover:bg-white/[0.03]';
+
+function switchTab(id) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('hidden'));
+  document.querySelectorAll('.tab-btn').forEach(b => {
+    b.className = b.className.replace(ACTIVE, '').replace(INACTIVE, '').trim();
+    b.classList.add(...INACTIVE.split(' '));
+  });
+  document.getElementById('tab-' + id).classList.remove('hidden');
+  const btn = document.getElementById('tab-btn-' + id);
+  btn.className = btn.className.replace(INACTIVE, '').trim();
+  btn.classList.add(...ACTIVE.split(' '));
+  location.hash = id;
+}
+
+// Activate tab from hash or saved query param
+const tab = (location.hash.slice(1)) || '{{ request.query_params.get("tab", "system") }}';
+switchTab(['system','monitoring','import','notifications'].includes(tab) ? tab : 'system');
+
 async function testNotification(channel) {
-  const btn = document.querySelector(`button[onclick="testNotification('${channel}')"]`);
   const result = document.getElementById('test-result');
-  btn.disabled = true;
-  result.textContent = 'Sende...';
+  result.textContent = 'Sending…';
   result.className = 'text-sm text-slate-400';
   try {
     const fd = new FormData();
@@ -373,41 +483,35 @@ async function testNotification(channel) {
     result.textContent = data.message;
     result.className = data.ok ? 'text-sm text-emerald-400' : 'text-sm text-red-400';
   } catch(e) {
-    result.textContent = 'Fehler: ' + e.message;
+    result.textContent = 'Error: ' + e.message;
     result.className = 'text-sm text-red-400';
-  } finally {
-    btn.disabled = false;
   }
 }
 
 async function runPhpIpamSync() {
-  const btn = document.getElementById('phpipam-sync-btn');
+  const btn  = document.getElementById('phpipam-sync-btn');
   const spin = document.getElementById('phpipam-spin');
-  const result = document.getElementById('phpipam-result');
-
+  const box  = document.getElementById('phpipam-result');
   btn.disabled = true;
   spin.classList.remove('hidden');
-  result.classList.add('hidden');
-
+  box.classList.add('hidden');
   try {
     const resp = await fetch('/settings/phpipam/sync', { method: 'POST' });
     const data = await resp.json();
-
-    result.classList.remove('hidden', 'bg-emerald-500/10', 'border-emerald-500/20', 'text-emerald-400',
-                                       'bg-red-500/10', 'border-red-500/20', 'text-red-400');
-
-    if (data.errors && data.errors.length > 0 && data.added === 0) {
-      result.classList.add('bg-red-500/10', 'border-red-500/20', 'text-red-400');
-      result.textContent = 'Error: ' + data.errors[0];
+    box.classList.remove('hidden', 'bg-emerald-500/10', 'border-emerald-500/20', 'text-emerald-400',
+                                    'bg-red-500/10',    'border-red-500/20',    'text-red-400');
+    if (data.errors?.length && !data.added) {
+      box.classList.add('bg-red-500/10', 'border-red-500/20', 'text-red-400');
+      box.textContent = 'Error: ' + data.errors[0];
     } else {
-      result.classList.add('bg-emerald-500/10', 'border-emerald-500/20', 'text-emerald-400');
-      result.textContent = `Sync: ${data.added} added, ${data.merged ?? 0} updated, ${data.skipped} skipped` +
-        (data.errors.length > 0 ? ` · ${data.errors.length} error(s)` : '');
+      box.classList.add('bg-emerald-500/10', 'border-emerald-500/20', 'text-emerald-400');
+      box.textContent = `Sync: ${data.added} added, ${data.merged ?? 0} updated, ${data.skipped} skipped`
+        + (data.errors.length ? ` · ${data.errors.length} error(s)` : '');
     }
   } catch(e) {
-    result.classList.remove('hidden');
-    result.classList.add('bg-red-500/10', 'border-red-500/20', 'text-red-400');
-    result.textContent = 'Connection error';
+    box.classList.remove('hidden');
+    box.classList.add('bg-red-500/10', 'border-red-500/20', 'text-red-400');
+    box.textContent = 'Connection error';
   } finally {
     btn.disabled = false;
     spin.classList.add('hidden');
