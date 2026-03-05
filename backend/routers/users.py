@@ -13,6 +13,26 @@ templates = Jinja2Templates(directory="templates")
 VALID_ROLES = {"admin", "editor", "readonly"}
 
 
+@router.post("/me/password")
+async def change_own_password(
+    request: Request,
+    password: str = Form(...),
+    db: AsyncSession = Depends(get_db),
+):
+    """Allow any logged-in user to change their own password."""
+    user = request.state.current_user
+    if not user:
+        from fastapi.responses import RedirectResponse
+        return RedirectResponse(url="/login", status_code=303)
+    db_user = await db.get(User, user.id)
+    if db_user:
+        db_user.password_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+        await db.commit()
+    # Redirect back to referrer or dashboard
+    ref = request.headers.get("referer", "/")
+    return RedirectResponse(url=ref, status_code=303)
+
+
 @router.get("", response_class=HTMLResponse)
 async def users_page(request: Request, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(User).order_by(User.created_at))
