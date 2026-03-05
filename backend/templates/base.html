@@ -343,7 +343,7 @@
     </main>
   </div>
 
-  {% block scripts %}{% endblock %}
+  <div id="page-scripts">{% block scripts %}{% endblock %}</div>
 
   <!-- ── Integration Picker Modal ─────────────────────────────────────── -->
   <div id="integration-picker" class="hidden fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4"
@@ -420,20 +420,33 @@
           if (!html) return;
           const doc = new DOMParser().parseFromString(html, 'text/html');
 
-          const newNav  = doc.querySelector('nav');
-          const newMain = doc.querySelector('main');
+          const newNav     = doc.querySelector('nav');
+          const newMain    = doc.querySelector('main');
+          const newScripts = doc.getElementById('page-scripts');
           if (newNav)  document.querySelector('nav').replaceWith(newNav);
           if (newMain) document.querySelector('main').replaceWith(newMain);
 
           document.title = doc.title;
           history.pushState({url}, '', url);
 
-          // Re-execute inline scripts in the new main
-          document.querySelector('main').querySelectorAll('script').forEach(s => {
-            const ns = document.createElement('script');
-            if (s.src) ns.src = s.src; else ns.textContent = s.textContent;
-            s.replaceWith(ns);
-          });
+          // Re-execute inline scripts in main + page-scripts block
+          function execScripts(container) {
+            container.querySelectorAll('script').forEach(s => {
+              const ns = document.createElement('script');
+              if (s.src) ns.src = s.src; else ns.textContent = s.textContent;
+              s.replaceWith(ns);
+            });
+          }
+          execScripts(document.querySelector('main'));
+          if (newScripts) {
+            const ps = document.getElementById('page-scripts');
+            ps.innerHTML = '';
+            newScripts.querySelectorAll('script').forEach(s => {
+              const ns = document.createElement('script');
+              if (s.src) ns.src = s.src; else ns.textContent = s.textContent;
+              ps.appendChild(ns);
+            });
+          }
 
           // Close mobile sidebar
           if (window.innerWidth <= 768) {
