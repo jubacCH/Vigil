@@ -406,11 +406,56 @@
       document.getElementById('sidebar').classList.toggle('open');
       document.getElementById('sidebar-overlay').classList.toggle('open');
     }
-    document.addEventListener('DOMContentLoaded', () => {
-      document.getElementById('sidebar').querySelectorAll('a').forEach(a => {
-        a.addEventListener('click', () => { if (window.innerWidth <= 768) toggleSidebar(); });
-      });
+
+    // ── SPA navigation: swap only <nav> + <main>, keep sidebar chrome ───
+    function navigate(url) {
+      fetch(url, {credentials: 'same-origin'})
+        .then(r => {
+          if (r.redirected && new URL(r.url).pathname === '/login') {
+            window.location.href = r.url; return null;
+          }
+          return r.text();
+        })
+        .then(html => {
+          if (!html) return;
+          const doc = new DOMParser().parseFromString(html, 'text/html');
+
+          const newNav  = doc.querySelector('nav');
+          const newMain = doc.querySelector('main');
+          if (newNav)  document.querySelector('nav').replaceWith(newNav);
+          if (newMain) document.querySelector('main').replaceWith(newMain);
+
+          document.title = doc.title;
+          history.pushState({url}, '', url);
+
+          // Re-execute inline scripts in the new main
+          document.querySelector('main').querySelectorAll('script').forEach(s => {
+            const ns = document.createElement('script');
+            if (s.src) ns.src = s.src; else ns.textContent = s.textContent;
+            s.replaceWith(ns);
+          });
+
+          // Close mobile sidebar
+          if (window.innerWidth <= 768) {
+            document.getElementById('sidebar').classList.remove('open');
+            document.getElementById('sidebar-overlay').classList.remove('open');
+          }
+        })
+        .catch(() => { window.location.href = url; });
+    }
+
+    // Intercept clicks on nav anchors only
+    document.addEventListener('click', e => {
+      const a = e.target.closest('a[href]');
+      if (!a || !a.closest('nav')) return;
+      const href = a.getAttribute('href');
+      if (!href || !href.startsWith('/') || href === '/logout') return;
+      e.preventDefault();
+      navigate(href);
     });
+
+    // Browser back / forward
+    window.addEventListener('popstate', () => navigate(location.pathname + location.search));
   </script>
 
   <!-- ── Change Own Password Modal ───────────────────────────────────── -->
