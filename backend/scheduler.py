@@ -217,6 +217,9 @@ async def cleanup_old_results():
         await db.execute(delete(PingResult).where(PingResult.timestamp < cutoff))
         # Snapshots
         await snap_svc.cleanup_all(db, retention)
+        # Syslog messages
+        from models.syslog import SyslogMessage
+        await db.execute(delete(SyslogMessage).where(SyslogMessage.timestamp < cutoff))
         await db.commit()
 
     logger.info("Cleanup done (retention: %d days)", retention)

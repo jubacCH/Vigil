@@ -1,0 +1,168 @@
+{% extends "base.html" %}
+{% block title %}Syslog – {{ request.state.site_name }}{% endblock %}
+
+{% block content %}
+<div class="p-8">
+
+  <!-- Header -->
+  <div class="flex items-center justify-between mb-6">
+    <div>
+      <h1 class="text-2xl font-bold text-white">Syslog</h1>
+      <p class="text-slate-500 text-sm mt-0.5">{{ total }} messages in the last {{ f_hours }}h</p>
+    </div>
+
+    <!-- Severity summary pills -->
+    <div class="flex items-center gap-2 flex-wrap">
+      {% for sev, label in [(0, 'Emerg'), (1, 'Alert'), (2, 'Crit'), (3, 'Error'), (4, 'Warn'), (5, 'Notice'), (6, 'Info'), (7, 'Debug')] %}
+        {% set cnt = severity_counts.get(sev, 0) %}
+        {% if cnt > 0 %}
+        <a href="?severity={{ sev }}&hours={{ f_hours }}&host={{ f_host }}&app={{ f_app }}&q={{ f_q }}"
+           class="px-2 py-0.5 rounded text-[10px] font-medium tabular-nums
+             {% if sev <= 2 %}bg-red-500/15 text-red-400 border border-red-500/20
+             {% elif sev == 3 %}bg-orange-500/15 text-orange-400 border border-orange-500/20
+             {% elif sev == 4 %}bg-yellow-500/15 text-yellow-400 border border-yellow-500/20
+             {% elif sev <= 6 %}bg-blue-500/10 text-blue-400 border border-blue-500/20
+             {% else %}bg-slate-500/10 text-slate-500 border border-slate-500/20{% endif %}
+             {% if f_severity == sev %}ring-1 ring-white/20{% endif %}">
+          {{ label }}: {{ cnt }}
+        </a>
+        {% endif %}
+      {% endfor %}
+      {% if f_severity is not none %}
+      <a href="?hours={{ f_hours }}&host={{ f_host }}&app={{ f_app }}&q={{ f_q }}"
+         class="px-2 py-0.5 rounded text-[10px] text-slate-500 hover:text-white border border-slate-600/30 hover:border-slate-500/50 transition-colors">
+        Clear filter
+      </a>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Filter bar -->
+  <form method="get" action="/syslog" class="flex items-center gap-3 mb-4">
+    <!-- Search -->
+    <div class="relative flex-1 max-w-sm">
+      <svg class="w-4 h-4 text-slate-600 absolute left-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+      </svg>
+      <input type="text" name="q" value="{{ f_q }}" placeholder="Full-text search..."
+             class="w-full pl-9 pr-3 py-2 rounded-lg bg-card border border-border text-sm text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500/50">
+    </div>
+
+    <!-- Host filter -->
+    <select name="host" class="px-3 py-2 rounded-lg bg-card border border-border text-sm text-white focus:outline-none focus:border-indigo-500/50 max-w-[180px]">
+      <option value="">All hosts</option>
+      {% for ip, hostname in known_hosts %}
+      <option value="{{ ip }}" {% if f_host == ip %}selected{% endif %}>{{ hostname or ip }}</option>
+      {% endfor %}
+    </select>
+
+    <!-- App filter -->
+    <input type="text" name="app" value="{{ f_app }}" placeholder="App name..."
+           class="px-3 py-2 rounded-lg bg-card border border-border text-sm text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500/50 w-32">
+
+    <!-- Time range -->
+    <select name="hours" class="px-3 py-2 rounded-lg bg-card border border-border text-sm text-white focus:outline-none focus:border-indigo-500/50">
+      {% for h in [1, 6, 12, 24, 48, 168] %}
+      <option value="{{ h }}" {% if f_hours == h %}selected{% endif %}>
+        {% if h < 24 %}{{ h }}h{% elif h == 24 %}24h{% elif h == 48 %}2d{% else %}7d{% endif %}
+      </option>
+      {% endfor %}
+    </select>
+
+    {% if f_severity is not none %}
+    <input type="hidden" name="severity" value="{{ f_severity }}">
+    {% endif %}
+
+    <button type="submit"
+            class="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium transition-colors">
+      Filter
+    </button>
+  </form>
+
+  {% if not messages %}
+  <!-- Empty state -->
+  <div class="bg-card border border-border rounded-xl p-12 text-center">
+    <div class="w-12 h-12 rounded-full bg-slate-500/10 flex items-center justify-center mx-auto mb-4">
+      <svg class="w-6 h-6 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+      </svg>
+    </div>
+    <p class="text-slate-400 font-semibold">No syslog messages</p>
+    <p class="text-slate-600 text-sm mt-1">No messages match the current filters, or no syslog data has been received yet.</p>
+  </div>
+
+  {% else %}
+
+  <!-- Log table -->
+  <div class="bg-card border border-border rounded-xl overflow-hidden">
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="border-b border-border text-left">
+            <th class="px-4 py-3 text-slate-500 font-medium text-xs uppercase tracking-wider w-[140px]">Time</th>
+            <th class="px-4 py-3 text-slate-500 font-medium text-xs uppercase tracking-wider w-[60px]">Sev</th>
+            <th class="px-4 py-3 text-slate-500 font-medium text-xs uppercase tracking-wider w-[140px]">Host</th>
+            <th class="px-4 py-3 text-slate-500 font-medium text-xs uppercase tracking-wider w-[100px]">App</th>
+            <th class="px-4 py-3 text-slate-500 font-medium text-xs uppercase tracking-wider">Message</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-border">
+          {% for msg in messages %}
+          <tr class="hover:bg-white/[0.02] transition-colors
+            {% if msg.severity is not none and msg.severity <= 2 %}bg-red-500/[0.03]
+            {% elif msg.severity == 3 %}bg-orange-500/[0.02]
+            {% elif msg.severity == 4 %}bg-yellow-500/[0.02]{% endif %}">
+            <td class="px-4 py-2.5 text-slate-500 text-xs tabular-nums whitespace-nowrap">
+              {{ msg.timestamp.strftime("%m-%d %H:%M:%S") }}
+            </td>
+            <td class="px-4 py-2.5">
+              {% if msg.severity is not none %}
+              <span class="px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase
+                {% if msg.severity <= 2 %}bg-red-500/20 text-red-400
+                {% elif msg.severity == 3 %}bg-orange-500/20 text-orange-400
+                {% elif msg.severity == 4 %}bg-yellow-500/20 text-yellow-400
+                {% elif msg.severity <= 6 %}bg-blue-500/15 text-blue-400
+                {% else %}bg-slate-500/15 text-slate-500{% endif %}">
+                {{ severity_labels.get(msg.severity, '?')[:4] }}
+              </span>
+              {% endif %}
+            </td>
+            <td class="px-4 py-2.5 text-slate-400 text-xs truncate max-w-[140px]" title="{{ msg.source_ip }}">
+              {{ msg.hostname or msg.source_ip }}
+            </td>
+            <td class="px-4 py-2.5 text-slate-500 text-xs truncate max-w-[100px]">{{ msg.app_name or '' }}</td>
+            <td class="px-4 py-2.5 text-slate-300 text-xs font-mono truncate max-w-[600px]" title="{{ msg.message }}">
+              {{ msg.message[:300] }}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Pagination -->
+  {% if total_pages > 1 %}
+  <div class="flex items-center justify-between mt-4">
+    <p class="text-slate-600 text-xs">Page {{ page }} of {{ total_pages }} ({{ total }} messages)</p>
+    <div class="flex items-center gap-1">
+      {% if page > 1 %}
+      <a href="?page={{ page - 1 }}&severity={{ f_severity if f_severity is not none else '' }}&host={{ f_host }}&app={{ f_app }}&q={{ f_q }}&hours={{ f_hours }}"
+         class="px-3 py-1.5 rounded-lg text-xs text-slate-400 hover:text-white bg-card border border-border hover:border-slate-600 transition-colors">
+        Prev
+      </a>
+      {% endif %}
+      {% if page < total_pages %}
+      <a href="?page={{ page + 1 }}&severity={{ f_severity if f_severity is not none else '' }}&host={{ f_host }}&app={{ f_app }}&q={{ f_q }}&hours={{ f_hours }}"
+         class="px-3 py-1.5 rounded-lg text-xs text-slate-400 hover:text-white bg-card border border-border hover:border-slate-600 transition-colors">
+        Next
+      </a>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+  {% endif %}
+
+</div>
+{% endblock %}

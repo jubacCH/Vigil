@@ -1,0 +1,46 @@
+<!-- Partial: syslog table rows for host detail tab -->
+{% if not messages %}
+<div class="p-6 text-center text-slate-600 text-sm">No syslog messages for this host.</div>
+{% else %}
+<div class="overflow-x-auto">
+  <table class="w-full text-sm">
+    <thead>
+      <tr class="border-b border-border text-left">
+        <th class="px-4 py-2 text-slate-500 font-medium text-xs uppercase tracking-wider w-[140px]">Time</th>
+        <th class="px-4 py-2 text-slate-500 font-medium text-xs uppercase tracking-wider w-[60px]">Sev</th>
+        <th class="px-4 py-2 text-slate-500 font-medium text-xs uppercase tracking-wider w-[100px]">App</th>
+        <th class="px-4 py-2 text-slate-500 font-medium text-xs uppercase tracking-wider">Message</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-border">
+      {% for msg in messages %}
+      <tr class="hover:bg-white/[0.02] transition-colors
+        {% if msg.severity is not none and msg.severity <= 2 %}bg-red-500/[0.03]
+        {% elif msg.severity == 3 %}bg-orange-500/[0.02]
+        {% elif msg.severity == 4 %}bg-yellow-500/[0.02]{% endif %}">
+        <td class="px-4 py-2 text-slate-500 text-xs tabular-nums whitespace-nowrap">{{ msg.timestamp.strftime("%m-%d %H:%M:%S") }}</td>
+        <td class="px-4 py-2">
+          {% if msg.severity is not none %}
+          <span class="px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase
+            {% if msg.severity <= 2 %}bg-red-500/20 text-red-400
+            {% elif msg.severity == 3 %}bg-orange-500/20 text-orange-400
+            {% elif msg.severity == 4 %}bg-yellow-500/20 text-yellow-400
+            {% elif msg.severity <= 6 %}bg-blue-500/15 text-blue-400
+            {% else %}bg-slate-500/15 text-slate-500{% endif %}">
+            {{ severity_labels.get(msg.severity, '?')[:4] }}
+          </span>
+          {% endif %}
+        </td>
+        <td class="px-4 py-2 text-slate-500 text-xs truncate max-w-[100px]">{{ msg.app_name or '' }}</td>
+        <td class="px-4 py-2 text-slate-300 text-xs font-mono truncate max-w-[500px]" title="{{ msg.message }}">{{ msg.message[:200] }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% if total_pages > 1 %}
+<div class="px-4 py-2 border-t border-border flex items-center justify-between">
+  <span class="text-slate-600 text-xs">Page {{ page }}/{{ total_pages }}</span>
+</div>
+{% endif %}
+{% endif %}

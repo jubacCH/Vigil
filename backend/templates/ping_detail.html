@@ -99,6 +99,14 @@
       </span>
     </button>
     {% endif %}
+    {% if syslog_count is defined and syslog_count > 0 %}
+    <button type="button" id="tab-syslog"
+            onclick="switchTab('syslog')"
+            class="tab-btn px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px">
+      Syslog
+      <span class="ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] bg-slate-500/10 text-slate-500">{{ syslog_count }}</span>
+    </button>
+    {% endif %}
   </div>
 
   <!-- ── INFO TAB ──────────────────────────────────────────────────────────── -->
@@ -618,6 +626,21 @@
   </div>
   {% endif %}
 
+  <!-- ── SYSLOG TAB ──────────────────────────────────────────────────────── -->
+  {% if syslog_count is defined and syslog_count > 0 %}
+  <div id="panel-syslog" class="hidden">
+    <div class="bg-[#13151f] border border-[#252836] rounded-xl overflow-hidden">
+      <div class="flex items-center justify-between px-5 py-3 border-b border-[#252836]">
+        <h2 class="text-sm font-semibold text-slate-300">Recent syslog messages</h2>
+        <a href="/syslog?host={{ host.hostname }}" class="text-xs text-indigo-400 hover:text-indigo-300 transition-colors">View all</a>
+      </div>
+      <div id="syslog-content">
+        <div class="p-6 text-center text-slate-600 text-sm">Loading...</div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
 </div>
 {% endblock %}
 
@@ -625,8 +648,9 @@
 <script>
   const activeTab = "{{ active_tab }}";
 
+  let syslogLoaded = false;
   function switchTab(name) {
-    ['info', 'monitoring', 'ports'].forEach(t => {
+    ['info', 'monitoring', 'ports', 'syslog'].forEach(t => {
       const btn = document.getElementById('tab-' + t);
       const panel = document.getElementById('panel-' + t);
       if (!btn || !panel) return;
@@ -647,6 +671,21 @@
   }
 
   switchTab(activeTab);
+
+  // Lazy-load syslog content when tab is shown
+  const origSwitch = switchTab;
+  const _origName = 'switchTab';
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (!syslogLoaded && document.getElementById('panel-syslog') && !document.getElementById('panel-syslog').classList.contains('hidden')) {
+        syslogLoaded = true;
+        fetch('/syslog/api/host/{{ host.id }}?hours=24')
+          .then(r => r.text())
+          .then(html => { document.getElementById('syslog-content').innerHTML = html; })
+          .catch(() => { document.getElementById('syslog-content').innerHTML = '<div class="p-6 text-center text-red-400 text-sm">Failed to load syslog data</div>'; });
+      }
+    });
+  });
 
   function updateEditPort() {
     const checked = [...document.querySelectorAll('input[name="check_types"]:checked')].map(c => c.value);

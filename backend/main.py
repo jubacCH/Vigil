@@ -12,18 +12,24 @@ from database import (
     PhpipamServer, SpeedtestConfig, NutInstance, RedfishServer,
 )
 from scheduler import start_scheduler, stop_scheduler
-from routers import auth, dashboard, ping, proxmox, setup, settings, unifi, unas, pihole, adguard, portainer, truenas, synology, firewall, hass, gitea, phpipam, speedtest, nut, redfish, alerts, users
+from routers import auth, dashboard, ping, proxmox, setup, settings, unifi, unas, pihole, adguard, portainer, truenas, synology, firewall, hass, gitea, phpipam, speedtest, nut, redfish, alerts, users, syslog as syslog_router
 from routers import integrations as integrations_router
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
-    # Create new generic tables (IntegrationConfig, Snapshot)
+    # Create new generic tables (IntegrationConfig, Snapshot, SyslogMessage)
     from models import init_db as init_new_db
     await init_new_db()
     start_scheduler()
+    # Start syslog receiver
+    from services.syslog import start_syslog_server, stop_syslog_server
+    import os
+    syslog_port = int(os.environ.get("SYSLOG_PORT", "1514"))
+    await start_syslog_server(udp_port=syslog_port, tcp_port=syslog_port)
     yield
+    await stop_syslog_server()
     stop_scheduler()
 
 
@@ -162,6 +168,7 @@ app.include_router(speedtest.router)
 app.include_router(nut.router)
 app.include_router(redfish.router)
 app.include_router(alerts.router)
+app.include_router(syslog_router.router)
 app.include_router(users.router)
 
 # ── New generic integration router ───────────────────────────────────────────

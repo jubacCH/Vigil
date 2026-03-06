@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from collectors.ping import check_host
 from database import PingHost, PingResult, ProxmoxCluster, ProxmoxSnapshot, UnifiSnapshot, get_db
+from models.syslog import SyslogMessage
 
 router = APIRouter(prefix="/ping")
 templates = Jinja2Templates(directory="templates")
@@ -387,6 +388,17 @@ async def ping_detail(host_id: int, request: Request, db: AsyncSession = Depends
         if unifi_client:
             break
 
+    # Syslog message count (24h)
+    syslog_count = 0
+    try:
+        since_24h = datetime.utcnow() - timedelta(hours=24)
+        syslog_count = (await db.execute(
+            select(func.count(SyslogMessage.id))
+            .where(SyslogMessage.host_id == host.id, SyslogMessage.timestamp >= since_24h)
+        )).scalar() or 0
+    except Exception:
+        pass
+
     return templates.TemplateResponse("ping_detail.html", {
         "request": request,
         "host": host,
@@ -409,6 +421,7 @@ async def ping_detail(host_id: int, request: Request, db: AsyncSession = Depends
         "proxmox_guest": proxmox_guest,
         "proxmox_history": proxmox_history,
         "unifi_client": unifi_client,
+        "syslog_count": syslog_count,
         "active_page": "ping",
         "saved": request.query_params.get("saved"),
         "active_tab": request.query_params.get("tab", "info"),

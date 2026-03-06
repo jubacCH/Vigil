@@ -19,11 +19,14 @@ services:
     container_name: vigil
     ports:
       - "8000:8000"
+      - "514:1514/udp"    # Syslog UDP (host 514 → container 1514)
+      - "1514:1514/tcp"   # Syslog TCP
     volumes:
       - ./data:/data
     environment:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-vigil}:${POSTGRES_PASSWORD:-vigil}@db:5432/${POSTGRES_DB:-vigil}
       DATA_DIR: /data
+      SYSLOG_PORT: "1514"
     depends_on:
       db:
         condition: service_healthy
