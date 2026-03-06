@@ -10,7 +10,21 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import (
     PingHost, PingResult,
-    get_db, get_setting, is_setup_complete,
+    ProxmoxCluster, ProxmoxSnapshot,
+    UnifiController, UnifiSnapshot,
+    UnasServer, UnasSnapshot,
+    PiholeInstance, PiholeSnapshot,
+    AdguardInstance, AdguardSnapshot,
+    PortainerInstance, PortainerSnapshot,
+    TruenasServer, TruenasSnapshot,
+    SynologyServer, SynologySnapshot,
+    FirewallInstance, FirewallSnapshot,
+    HassInstance, HassSnapshot,
+    GiteaInstance, GiteaSnapshot,
+    NutInstance, NutSnapshot,
+    RedfishServer, RedfishSnapshot,
+    SpeedtestConfig, SpeedtestResult,
+    get_db, get_setting, is_setup_complete, decrypt_value,
 )
 from models.integration import IntegrationConfig, Snapshot
 from services import integration as int_svc
@@ -163,54 +177,82 @@ async def dashboard(request: Request, db: AsyncSession = Depends(get_db)):
     top_latency  = sorted(with_latency, key=lambda s: s["avg_latency"], reverse=True)[:10]
     top_downtime = sorted(active_stats, key=lambda s: s["uptime_pct"])[:10]
 
-    # ── Proxmox clusters (from new generic tables) ────────────────────────────
+    # ── Proxmox clusters ────────────────────────────────────────────────────
+    # Try new generic tables first, fall back to old ProxmoxCluster table
     px_configs_result = await db.execute(
         select(IntegrationConfig)
         .where(IntegrationConfig.type == "proxmox")
         .order_by(IntegrationConfig.name)
     )
     px_configs = px_configs_result.scalars().all()
+    _use_new_px = len(px_configs) > 0
 
-    # Build "cluster" objects compatible with template (needs .id, .name, .host)
-    class _PxCluster:
-        def __init__(self, cfg):
-            self.id = cfg.id
-            self.name = cfg.name
-            try:
-                d = int_svc.decrypt_config(cfg.config_json)
-                self.host = d.get("host", "")
-            except Exception:
-                self.host = ""
-
-    proxmox_clusters = [_PxCluster(c) for c in px_configs]
+    if _use_new_px:
+        class _PxCluster:
+            def __init__(self, cfg):
+                self.id = cfg.id
+                self.name = cfg.name
+                try:
+                    d = int_svc.decrypt_config(cfg.config_json)
+                    self.host = d.get("host", "")
+                except Exception:
+                    self.host = ""
+        proxmox_clusters = [_PxCluster(c) for c in px_configs]
+    else:
+        px_result = await db.execute(select(ProxmoxCluster).order_by(ProxmoxCluster.name))
+        proxmox_clusters = px_result.scalars().all()
 
     anomaly_threshold = float(await get_setting(db, "anomaly_threshold", "2.0"))
 
     all_guests: list[dict] = []
     anomalies:  list[dict] = []
 
-    # Get latest + historical snapshots for proxmox
-    px_snapshots = await snap_svc.get_latest_batch(db, "proxmox")
+    if _use_new_px:
+        px_snapshots = await snap_svc.get_latest_batch(db, "proxmox")
+    else:
+        px_snapshots = {}
 
     for cluster in proxmox_clusters:
-        latest_snap = px_snapshots.get(cluster.id)
-        if not latest_snap or not latest_snap.ok or not latest_snap.data_json:
-            continue
+        if _use_new_px:
+            latest_snap = px_snapshots.get(cluster.id)
+            if not latest_snap or not latest_snap.ok or not latest_snap.data_json:
+                continue
+            latest_data = json.loads(latest_snap.data_json)
+        else:
+            latest_snap = (await db.execute(
+                select(ProxmoxSnapshot)
+                .where(ProxmoxSnapshot.cluster_id == cluster.id, ProxmoxSnapshot.ok == True)
+                .order_by(ProxmoxSnapshot.timestamp.desc())
+                .limit(1)
+            )).scalar_one_or_none()
+            if not latest_snap or not latest_snap.data_json:
+                continue
+            latest_data = json.loads(latest_snap.data_json)
 
-        latest_data = json.loads(latest_snap.data_json)
         guests_now = latest_data.get("vms", []) + latest_data.get("containers", [])
 
         # Historical snapshots for anomaly baseline
-        hist_snaps = (await db.execute(
-            select(Snapshot)
-            .where(
-                Snapshot.entity_type == "proxmox",
-                Snapshot.entity_id == cluster.id,
-                Snapshot.ok == True,
-                Snapshot.timestamp >= window_24h,
-                Snapshot.timestamp < latest_snap.timestamp,
-            )
-        )).scalars().all()
+        if _use_new_px:
+            hist_snaps = (await db.execute(
+                select(Snapshot)
+                .where(
+                    Snapshot.entity_type == "proxmox",
+                    Snapshot.entity_id == cluster.id,
+                    Snapshot.ok == True,
+                    Snapshot.timestamp >= window_24h,
+                    Snapshot.timestamp < latest_snap.timestamp,
+                )
+            )).scalars().all()
+        else:
+            hist_snaps = (await db.execute(
+                select(ProxmoxSnapshot)
+                .where(
+                    ProxmoxSnapshot.cluster_id == cluster.id,
+                    ProxmoxSnapshot.ok == True,
+                    ProxmoxSnapshot.timestamp >= window_24h,
+                    ProxmoxSnapshot.timestamp < latest_snap.timestamp,
+                )
+            )).scalars().all()
 
         hist: dict[int, dict] = defaultdict(lambda: {"cpu": [], "mem": []})
         for snap in hist_snaps:
@@ -295,36 +337,84 @@ async def dashboard(request: Request, db: AsyncSession = Depends(get_db)):
         ping_host_map[h.hostname] = h.id
         ping_host_map.setdefault(h.name, h.id)
 
-    # ── Integration health (from new generic tables) ──────────────────────────
+    # ── Integration health ──────────────────────────────────────────────────
     integration_health = []
 
-    # Get all configs + latest snapshots in batch
+    # Try new generic tables first
     all_configs_result = await db.execute(
         select(IntegrationConfig).order_by(IntegrationConfig.type, IntegrationConfig.name)
     )
     all_configs = all_configs_result.scalars().all()
+    # Filter out proxmox (shown separately)
+    non_px_configs = [c for c in all_configs if c.type != "proxmox"]
 
-    all_snaps = await snap_svc.get_latest_batch_all(db)
-
-    for cfg in all_configs:
-        # Skip proxmox – shown separately as cluster cards
-        if cfg.type == "proxmox":
-            continue
-
-        meta = _INTEGRATION_META.get(cfg.type, {"label": cfg.type, "color": "slate", "url_prefix": f"/{cfg.type}"})
-        snap = all_snaps.get(cfg.type, {}).get(cfg.id)
-
-        url = f"{meta['url_prefix']}/{cfg.id}" if cfg.type != "speedtest" else meta["url_prefix"]
-
-        integration_health.append({
-            "label": meta["label"],
-            "name": cfg.name,
-            "url": url,
-            "color": meta["color"],
-            "ok": snap.ok if snap else None,
-            "error": snap.error if snap and not snap.ok else None,
-            "cached_at": snap.timestamp if snap else None,
-        })
+    if non_px_configs:
+        all_snaps = await snap_svc.get_latest_batch_all(db)
+        for cfg in non_px_configs:
+            meta = _INTEGRATION_META.get(cfg.type, {"label": cfg.type, "color": "slate", "url_prefix": f"/{cfg.type}"})
+            snap = all_snaps.get(cfg.type, {}).get(cfg.id)
+            url = f"{meta['url_prefix']}/{cfg.id}" if cfg.type != "speedtest" else meta["url_prefix"]
+            integration_health.append({
+                "label": meta["label"],
+                "name": cfg.name,
+                "url": url,
+                "color": meta["color"],
+                "ok": snap.ok if snap else None,
+                "error": snap.error if snap and not snap.ok else None,
+                "cached_at": snap.timestamp if snap else None,
+            })
+    else:
+        # Fall back to old per-integration tables
+        for label, config_model, snap_model, snap_fk, url_prefix, color in [
+            ("UniFi",         UnifiController,   UnifiSnapshot,     "controller_id", "/unifi",     "blue"),
+            ("UniFi NAS",     UnasServer,        UnasSnapshot,      "server_id",     "/unas",      "cyan"),
+            ("Pi-hole",       PiholeInstance,    PiholeSnapshot,    "instance_id",   "/pihole",    "red"),
+            ("AdGuard",       AdguardInstance,   AdguardSnapshot,   "instance_id",   "/adguard",   "emerald"),
+            ("Portainer",     PortainerInstance, PortainerSnapshot, "instance_id",   "/portainer", "teal"),
+            ("TrueNAS",       TruenasServer,     TruenasSnapshot,   "server_id",     "/truenas",   "slate"),
+            ("Synology",      SynologyServer,    SynologySnapshot,  "server_id",     "/synology",  "blue"),
+            ("Firewall",      FirewallInstance,  FirewallSnapshot,  "instance_id",   "/firewall",  "orange"),
+            ("Home Assistant",HassInstance,      HassSnapshot,      "instance_id",   "/hass",      "orange"),
+            ("Gitea",         GiteaInstance,     GiteaSnapshot,     "instance_id",   "/gitea",     "green"),
+            ("UPS / NUT",     NutInstance,       NutSnapshot,       "instance_id",   "/ups",       "yellow"),
+            ("Redfish",       RedfishServer,     RedfishSnapshot,   "server_id",     "/redfish",   "purple"),
+        ]:
+            instances = (await db.execute(select(config_model))).scalars().all()
+            if not instances:
+                continue
+            for inst in instances:
+                snap = (await db.execute(
+                    select(snap_model)
+                    .where(getattr(snap_model, snap_fk) == inst.id)
+                    .order_by(snap_model.timestamp.desc())
+                    .limit(1)
+                )).scalar_one_or_none()
+                integration_health.append({
+                    "label": label,
+                    "name": inst.name,
+                    "url": f"{url_prefix}/{inst.id}",
+                    "color": color,
+                    "ok": snap.ok if snap else None,
+                    "error": snap.error if snap and not snap.ok else None,
+                    "cached_at": snap.timestamp if snap else None,
+                })
+        # Speedtest
+        for st in (await db.execute(select(SpeedtestConfig))).scalars().all():
+            snap = (await db.execute(
+                select(SpeedtestResult)
+                .where(SpeedtestResult.config_id == st.id)
+                .order_by(SpeedtestResult.timestamp.desc())
+                .limit(1)
+            )).scalar_one_or_none()
+            integration_health.append({
+                "label": "Speedtest",
+                "name": st.name,
+                "url": "/speedtest",
+                "color": "blue",
+                "ok": snap.ok if snap else None,
+                "error": snap.error if snap and not snap.ok else None,
+                "cached_at": snap.timestamp if snap else None,
+            })
 
     return templates.TemplateResponse("dashboard.html", {
         "request": request,

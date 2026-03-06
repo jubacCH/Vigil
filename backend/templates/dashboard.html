@@ -498,15 +498,14 @@
     if (!card) return;
     const statusEl = card.querySelector('.px-status');
     try {
-      const res = await fetch(`/api/integration/proxmox/${id}/status`);
+      const res = await fetch(`/proxmox/api/${id}/status`);
       const d = await res.json();
       if (!d.ok) {
         statusEl.innerHTML = `<span class="text-red-400">⚠ ${d.error || 'Connection error'}</span>`;
         return;
       }
-      const data = d.data || d;
-      const t = data.totals;
-      const quorum = data.quorum_ok
+      const t = d.totals;
+      const quorum = d.quorum_ok
         ? `<span class="text-emerald-400">● Quorum OK</span>`
         : `<span class="text-red-400">● No quorum</span>`;
       statusEl.innerHTML = `
