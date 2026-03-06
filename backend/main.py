@@ -23,10 +23,15 @@ async def lifespan(app: FastAPI):
     from models import init_db as init_new_db
     await init_new_db()
     start_scheduler()
-    # Start syslog receiver
+    # Start syslog receiver (port from DB setting, fallback to env/1514)
     from services.syslog import start_syslog_server, stop_syslog_server
+    from database import AsyncSessionLocal, get_setting as _get_setting
     import os
-    syslog_port = int(os.environ.get("SYSLOG_PORT", "1514"))
+    try:
+        async with AsyncSessionLocal() as _db:
+            syslog_port = int(await _get_setting(_db, "syslog_port", ""))
+    except (ValueError, TypeError):
+        syslog_port = int(os.environ.get("SYSLOG_PORT", "1514"))
     await start_syslog_server(udp_port=syslog_port, tcp_port=syslog_port)
     yield
     await stop_syslog_server()

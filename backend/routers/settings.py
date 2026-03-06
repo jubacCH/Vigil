@@ -32,6 +32,8 @@ async def settings_page(request: Request, db: AsyncSession = Depends(get_db)):
     phpipam_sync_hours  = await get_setting(db, "phpipam_sync_hours", "0")
     integration_retention = await get_setting(db, "integration_retention_days", "7")
 
+    syslog_port         = await get_setting(db, "syslog_port", "1514")
+
     notify_enabled      = await get_setting(db, "notify_enabled", "0")
     telegram_bot_token  = await get_setting(db, "telegram_bot_token", "")
     telegram_chat_id    = await get_setting(db, "telegram_chat_id", "")
@@ -63,6 +65,7 @@ async def settings_page(request: Request, db: AsyncSession = Depends(get_db)):
         "phpipam_verify_ssl": phpipam_verify_ssl,
         "phpipam_sync_hours": phpipam_sync_hours,
         "integration_retention": integration_retention,
+        "syslog_port": syslog_port,
         "notify_enabled": notify_enabled,
         "telegram_bot_token": telegram_bot_token,
         "telegram_chat_id": telegram_chat_id,
@@ -92,6 +95,7 @@ async def save_settings(
     ram_threshold:      str = Form("85"),
     disk_threshold:     str = Form("90"),
     integration_retention: str = Form("7"),
+    syslog_port:        str = Form("1514"),
     db: AsyncSession = Depends(get_db),
 ):
     await set_setting(db, "site_name", site_name.strip())
@@ -154,6 +158,23 @@ async def save_settings(
         except ValueError:
             pct = default
         await set_setting(db, key, str(pct))
+
+    # Syslog port
+    old_syslog_port = await get_setting(db, "syslog_port", "1514")
+    try:
+        new_sp = max(1, min(65535, int(syslog_port)))
+    except ValueError:
+        new_sp = 1514
+    await set_setting(db, "syslog_port", str(new_sp))
+
+    # Restart syslog server if port changed
+    if str(new_sp) != old_syslog_port:
+        try:
+            from services.syslog import stop_syslog_server, start_syslog_server
+            await stop_syslog_server()
+            await start_syslog_server(udp_port=new_sp, tcp_port=new_sp)
+        except Exception:
+            pass  # logged internally
 
     # Reschedule both jobs live
     from scheduler import scheduler

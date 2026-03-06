@@ -95,6 +95,7 @@
       <input type="hidden" name="cpu_threshold" value="{{ cpu_threshold }}">
       <input type="hidden" name="ram_threshold" value="{{ ram_threshold }}">
       <input type="hidden" name="disk_threshold" value="{{ disk_threshold }}">
+      <input type="hidden" name="syslog_port" value="{{ syslog_port }}">
 
       <div class="mt-4">
         <button type="submit"
@@ -118,7 +119,7 @@
           <h2 class="ng-heading text-sm text-[--ng-text-primary]">Poll intervals</h2>
           <p class="text-xs text-slate-600 mt-0.5">How often each collector runs</p>
         </div>
-        <div class="px-5 py-4 grid grid-cols-2 gap-5">
+        <div class="px-5 py-4 grid grid-cols-3 gap-5">
           <div>
             <label class="block text-xs font-medium text-slate-400 mb-1.5">Ping / Hosts (seconds)</label>
             <input type="number" name="ping_interval" value="{{ ping_interval }}" min="10" max="3600"
@@ -130,6 +131,12 @@
             <input type="number" name="proxmox_interval" value="{{ proxmox_interval }}" min="10" max="3600"
                    class="ng-input">
             <p class="text-slate-700 text-xs mt-1">10 – 3600 s</p>
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-slate-400 mb-1.5">Syslog Port (UDP + TCP)</label>
+            <input type="number" name="syslog_port" value="{{ syslog_port }}" min="1" max="65535"
+                   class="ng-input">
+            <p class="text-slate-700 text-xs mt-1">Default: 1514. Restarts listener on change.</p>
           </div>
         </div>
       </div>
