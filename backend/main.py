@@ -3,8 +3,15 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
+from sqlalchemy import func, select
 
-from database import AsyncSessionLocal, get_setting, init_db
+from database import (
+    AsyncSessionLocal, get_setting, init_db,
+    ProxmoxCluster, UnifiController, UnasServer,
+    PiholeInstance, AdguardInstance, PortainerInstance, TruenasServer,
+    SynologyServer, FirewallInstance, HassInstance, GiteaInstance,
+    PhpipamServer, SpeedtestConfig, NutInstance, RedfishServer,
+)
 from scheduler import start_scheduler, stop_scheduler
 from routers import auth, dashboard, ping, proxmox, setup, settings, unifi, unas, pihole, adguard, portainer, truenas, synology, firewall, hass, gitea, phpipam, speedtest, nut, redfish, alerts, users
 from routers import integrations as integrations_router
@@ -50,15 +57,34 @@ _NAV_KEYS = (
 )
 
 
+# Old table mapping for nav counts (used until data is migrated to integration_configs)
+_OLD_MODELS = {
+    "proxmox": ProxmoxCluster, "unifi": UnifiController, "unas": UnasServer,
+    "pihole": PiholeInstance, "adguard": AdguardInstance, "portainer": PortainerInstance,
+    "truenas": TruenasServer, "synology": SynologyServer, "firewall": FirewallInstance,
+    "hass": HassInstance, "gitea": GiteaInstance, "phpipam": PhpipamServer,
+    "speedtest": SpeedtestConfig, "ups": NutInstance, "redfish": RedfishServer,
+}
+
+
 async def _get_nav_counts(db) -> dict:
     now = time.time()
     if now - _nav_cache["ts"] < _NAV_CACHE_TTL and _nav_cache["counts"]:
         return _nav_cache["counts"]
 
+    # Try new generic table first
     from services.integration import count_all_by_type
     raw = await count_all_by_type(db)
-    # Ensure all expected keys exist (templates access .key directly)
     counts = {k: raw.get(k, 0) for k in _NAV_KEYS}
+
+    # Fall back to old tables if new table is empty
+    if not any(counts.values()):
+        for key, model in _OLD_MODELS.items():
+            try:
+                r = await db.execute(select(func.count()).select_from(model))
+                counts[key] = r.scalar() or 0
+            except Exception:
+                counts[key] = 0
 
     _nav_cache["counts"] = counts
     _nav_cache["ts"] = now
