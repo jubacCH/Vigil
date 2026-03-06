@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% block title %}{{ integration.display_name }}{% endblock %}
+
+{% block content %}
+<div class="flex items-center justify-between mb-6">
+    <h1 class="text-2xl font-semibold">{{ integration.display_name }}</h1>
+    <button onclick="document.getElementById('addModal').classList.remove('hidden')"
+            class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition">
+        + Add {{ integration.display_name }}
+    </button>
+</div>
+
+{% if saved == "1" %}
+<div class="bg-green-500/10 border border-green-500/30 text-green-400 px-4 py-2 rounded-lg mb-4 text-sm">
+    Saved successfully.
+</div>
+{% elif saved == "deleted" %}
+<div class="bg-red-500/10 border border-red-500/30 text-red-400 px-4 py-2 rounded-lg mb-4 text-sm">
+    Instance deleted.
+</div>
+{% endif %}
+
+{% if instances %}
+<div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+    {% for inst in instances %}
+    <a href="/integration/{{ integration.name }}/{{ inst.config.id }}"
+       class="bg-gray-800/60 border border-gray-700/50 rounded-xl p-5 hover:border-blue-500/40 transition block">
+        <div class="flex items-center gap-3 mb-3">
+            {% if integration.icon %}
+            <img src="https://cdn.simpleicons.org/{{ integration.icon }}/94a3b8" class="w-6 h-6" alt="">
+            {% endif %}
+            <h3 class="font-medium text-white truncate">{{ inst.config.name }}</h3>
+        </div>
+        <div class="flex items-center gap-2 text-sm">
+            {% if inst.snap and inst.snap.ok %}
+            <span class="w-2 h-2 rounded-full bg-green-400"></span>
+            <span class="text-green-400">Connected</span>
+            {% elif inst.snap and not inst.snap.ok %}
+            <span class="w-2 h-2 rounded-full bg-red-400"></span>
+            <span class="text-red-400">Error</span>
+            {% else %}
+            <span class="w-2 h-2 rounded-full bg-gray-500"></span>
+            <span class="text-gray-400">No data</span>
+            {% endif %}
+        </div>
+        {% if inst.snap %}
+        <p class="text-xs text-gray-500 mt-2">Last check: {{ inst.snap.timestamp.strftime('%H:%M:%S') if inst.snap.timestamp else '—' }}</p>
+        {% endif %}
+    </a>
+    {% endfor %}
+</div>
+{% else %}
+<div class="text-center py-16 text-gray-400">
+    <p class="text-lg mb-2">No {{ integration.display_name }} instances configured</p>
+    <p class="text-sm">Click the button above to add one.</p>
+</div>
+{% endif %}
+
+<!-- Add Modal -->
+<div id="addModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+    <div class="bg-gray-800 border border-gray-700 rounded-xl p-6 w-full max-w-lg mx-4">
+        <h2 class="text-lg font-semibold mb-4">Add {{ integration.display_name }}</h2>
+        <form method="post" action="/integration/{{ integration.name }}/add" class="space-y-4">
+            <div>
+                <label class="block text-sm text-gray-400 mb-1">Name</label>
+                <input type="text" name="name" required
+                       class="w-full bg-gray-900 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white"
+                       placeholder="{{ integration.display_name }} Instance">
+            </div>
+            {% for field in integration.config_fields %}
+            <div>
+                <label class="block text-sm text-gray-400 mb-1">{{ field.label }}</label>
+                {% if field.field_type == "checkbox" %}
+                <label class="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" name="{{ field.key }}" value="on"
+                           {% if field.default %}checked{% endif %}
+                           class="rounded bg-gray-900 border-gray-600">
+                    <span class="text-sm text-gray-300">{{ field.label }}</span>
+                </label>
+                {% elif field.field_type == "select" %}
+                <select name="{{ field.key }}"
+                        class="w-full bg-gray-900 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white">
+                    {% for opt in field.options %}
+                    <option value="{{ opt.value }}" {% if opt.value == field.default %}selected{% endif %}>
+                        {{ opt.label }}
+                    </option>
+                    {% endfor %}
+                </select>
+                {% elif field.field_type == "password" %}
+                <input type="password" name="{{ field.key }}"
+                       {% if field.required %}required{% endif %}
+                       class="w-full bg-gray-900 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white"
+                       placeholder="{{ field.placeholder }}">
+                {% elif field.field_type == "number" %}
+                <input type="number" name="{{ field.key }}"
+                       {% if field.required %}required{% endif %}
+                       value="{{ field.default or '' }}"
+                       class="w-full bg-gray-900 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white"
+                       placeholder="{{ field.placeholder }}">
+                {% else %}
+                <input type="{{ field.field_type or 'text' }}" name="{{ field.key }}"
+                       {% if field.required %}required{% endif %}
+                       class="w-full bg-gray-900 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white"
+                       placeholder="{{ field.placeholder }}">
+                {% endif %}
+            </div>
+            {% endfor %}
+            <div class="flex justify-end gap-3 pt-2">
+                <button type="button" onclick="document.getElementById('addModal').classList.add('hidden')"
+                        class="px-4 py-2 text-sm text-gray-400 hover:text-white transition">Cancel</button>
+                <button type="submit"
+                        class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition">
+                    Save
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% block title %}{{ config.name }} – {{ integration.display_name }}{% endblock %}
+
+{% block content %}
+<div class="flex items-center justify-between mb-6">
+    <div class="flex items-center gap-3">
+        <a href="/integration/{{ integration.name }}" class="text-gray-400 hover:text-white transition">&larr;</a>
+        {% if integration.icon %}
+        <img src="https://cdn.simpleicons.org/{{ integration.icon }}/94a3b8" class="w-6 h-6" alt="">
+        {% endif %}
+        <h1 class="text-2xl font-semibold">{{ config.name }}</h1>
+    </div>
+    <div class="flex gap-2">
+        <button onclick="document.getElementById('editModal').classList.remove('hidden')"
+                class="bg-gray-700 hover:bg-gray-600 text-white px-3 py-1.5 rounded-lg text-sm transition">
+            Edit
+        </button>
+        <form method="post" action="/integration/{{ integration.name }}/{{ config.id }}/delete"
+              onsubmit="return confirm('Delete this instance?')">
+            <button type="submit"
+                    class="bg-red-600/20 hover:bg-red-600/40 text-red-400 px-3 py-1.5 rounded-lg text-sm transition">
+                Delete
+            </button>
+        </form>
+    </div>
+</div>
+
+{% if saved == "1" %}
+<div class="bg-green-500/10 border border-green-500/30 text-green-400 px-4 py-2 rounded-lg mb-4 text-sm">
+    Saved successfully.
+</div>
+{% endif %}
+
+{% if error %}
+<div class="bg-red-500/10 border border-red-500/30 text-red-400 px-4 py-3 rounded-lg mb-4">
+    <p class="font-medium text-sm">Connection Error</p>
+    <p class="text-xs mt-1 font-mono">{{ error }}</p>
+</div>
+{% endif %}
+
+{% if data %}
+<div class="bg-gray-800/60 border border-gray-700/50 rounded-xl p-6">
+    <h2 class="text-lg font-semibold mb-4">Snapshot Data</h2>
+    {% if snap %}
+    <p class="text-xs text-gray-500 mb-4">Last updated: {{ snap.timestamp.strftime('%Y-%m-%d %H:%M:%S') if snap.timestamp else '—' }}</p>
+    {% endif %}
+    <pre class="text-sm text-gray-300 bg-gray-900 rounded-lg p-4 overflow-auto max-h-96">{{ data | tojson(indent=2) }}</pre>
+</div>
+{% else %}
+<div class="text-center py-16 text-gray-400">
+    <p class="text-lg mb-2">No data available</p>
+    <p class="text-sm">Waiting for the first data collection...</p>
+</div>
+{% endif %}
+
+<!-- Edit Modal -->
+<div id="editModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+    <div class="bg-gray-800 border border-gray-700 rounded-xl p-6 w-full max-w-lg mx-4">
+        <h2 class="text-lg font-semibold mb-4">Edit {{ config.name }}</h2>
+        <form method="post" action="/integration/{{ integration.name }}/{{ config.id }}/edit" class="space-y-4">
+            <div>
+                <label class="block text-sm text-gray-400 mb-1">Name</label>
+                <input type="text" name="name" value="{{ config.name }}" required
+                       class="w-full bg-gray-900 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white">
+            </div>
+            {% for field in integration.config_fields %}
+            <div>
+                <label class="block text-sm text-gray-400 mb-1">{{ field.label }}</label>
+                {% if field.field_type == "checkbox" %}
+                <label class="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" name="{{ field.key }}" value="on"
+                           {% if config_dict.get(field.key) %}checked{% endif %}
+                           class="rounded bg-gray-900 border-gray-600">
+                    <span class="text-sm text-gray-300">{{ field.label }}</span>
+                </label>
+                {% elif field.field_type == "select" %}
+                <select name="{{ field.key }}"
+                        class="w-full bg-gray-900 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white">
+                    {% for opt in field.options %}
+                    <option value="{{ opt.value }}" {% if config_dict.get(field.key) == opt.value %}selected{% endif %}>
+                        {{ opt.label }}
+                    </option>
+                    {% endfor %}
+                </select>
+                {% elif field.field_type == "password" %}
+                <input type="password" name="{{ field.key }}"
+                       class="w-full bg-gray-900 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white"
+                       placeholder="Leave empty to keep current">
+                {% elif field.field_type == "number" %}
+                <input type="number" name="{{ field.key }}"
+                       value="{{ config_dict.get(field.key, field.default or '') }}"
+                       class="w-full bg-gray-900 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white"
+                       placeholder="{{ field.placeholder }}">
+                {% else %}
+                <input type="{{ field.field_type or 'text' }}" name="{{ field.key }}"
+                       value="{{ config_dict.get(field.key, '') }}"
+                       class="w-full bg-gray-900 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white"
+                       placeholder="{{ field.placeholder }}">
+                {% endif %}
+            </div>
+            {% endfor %}
+            <div class="flex justify-end gap-3 pt-2">
+                <button type="button" onclick="document.getElementById('editModal').classList.add('hidden')"
+                        class="px-4 py-2 text-sm text-gray-400 hover:text-white transition">Cancel</button>
+                <button type="submit"
+                        class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition">
+                    Save Changes
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

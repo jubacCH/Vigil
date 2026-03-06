@@ -1,24 +1,21 @@
+import time
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 
-from sqlalchemy import func, select
-
-from database import (
-    AsyncSessionLocal, get_setting, init_db,
-    ProxmoxCluster, UnifiController, UnasServer,
-    PiholeInstance, AdguardInstance, PortainerInstance, TruenasServer,
-    SynologyServer, FirewallInstance, HassInstance, GiteaInstance,
-    PhpipamServer, SpeedtestConfig, NutInstance, RedfishServer,
-)
+from database import AsyncSessionLocal, get_setting, init_db
 from scheduler import start_scheduler, stop_scheduler
 from routers import auth, dashboard, ping, proxmox, setup, settings, unifi, unas, pihole, adguard, portainer, truenas, synology, firewall, hass, gitea, phpipam, speedtest, nut, redfish, alerts, users
+from routers import integrations as integrations_router
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
+    # Create new generic tables (IntegrationConfig, Snapshot)
+    from models import init_db as init_new_db
+    await init_new_db()
     start_scheduler()
     yield
     stop_scheduler()
@@ -29,12 +26,51 @@ app = FastAPI(title="Vigil", lifespan=lifespan)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 
-def _count(q):
-    return q.scalar() or 0
+@app.get("/health")
+async def health():
+    from sqlalchemy import text as sa_text
+    try:
+        async with AsyncSessionLocal() as db:
+            await db.execute(sa_text("SELECT 1"))
+        return {"status": "ok", "db": "connected"}
+    except Exception as e:
+        return {"status": "error", "db": str(e)}
+
+
+# ── Nav counts cache (60s TTL, single GROUP BY query) ────────────────────────
+
+_nav_cache: dict = {"counts": {}, "ts": 0.0}
+_NAV_CACHE_TTL = 60  # seconds
+
+# All integration type keys expected by templates
+_NAV_KEYS = (
+    "proxmox", "unifi", "unas", "pihole", "adguard", "portainer",
+    "truenas", "synology", "firewall", "hass", "gitea", "phpipam",
+    "speedtest", "ups", "redfish",
+)
+
+
+async def _get_nav_counts(db) -> dict:
+    now = time.time()
+    if now - _nav_cache["ts"] < _NAV_CACHE_TTL and _nav_cache["counts"]:
+        return _nav_cache["counts"]
+
+    from services.integration import count_all_by_type
+    raw = await count_all_by_type(db)
+    # Ensure all expected keys exist (templates access .key directly)
+    counts = {k: raw.get(k, 0) for k in _NAV_KEYS}
+
+    _nav_cache["counts"] = counts
+    _nav_cache["ts"] = now
+    return counts
 
 
 @app.middleware("http")
 async def inject_globals(request: Request, call_next):
+    # Skip middleware for static files and health check
+    if request.url.path.startswith("/static/") or request.url.path == "/health":
+        return await call_next(request)
+
     # Auth check – skip for public paths
     PUBLIC_PATHS = {"/login", "/logout"}
     is_public = request.url.path in PUBLIC_PATHS or request.url.path.startswith("/setup")
@@ -75,30 +111,11 @@ async def inject_globals(request: Request, call_next):
 
     async with AsyncSessionLocal() as db:
         request.state.site_name = await get_setting(db, "site_name", "Vigil")
-        # Count configured integrations so nav links are only shown when set up
-        counts = {}
-        for key, model in [
-            ("proxmox",   ProxmoxCluster),
-            ("unifi",     UnifiController),
-            ("unas",      UnasServer),
-            ("pihole",    PiholeInstance),
-            ("adguard",   AdguardInstance),
-            ("portainer", PortainerInstance),
-            ("truenas",   TruenasServer),
-            ("synology",  SynologyServer),
-            ("firewall",  FirewallInstance),
-            ("hass",      HassInstance),
-            ("gitea",     GiteaInstance),
-            ("phpipam",   PhpipamServer),
-            ("speedtest", SpeedtestConfig),
-            ("ups",       NutInstance),
-            ("redfish",   RedfishServer),
-        ]:
-            counts[key] = _count(await db.execute(select(func.count()).select_from(model)))
-        request.state.nav_counts = counts
+        request.state.nav_counts = await _get_nav_counts(db)
     return await call_next(request)
 
 
+# ── Old routers (backward compat – will be removed after full migration) ─────
 app.include_router(auth.router)
 app.include_router(dashboard.router)
 app.include_router(setup.router)
@@ -121,3 +138,6 @@ app.include_router(nut.router)
 app.include_router(redfish.router)
 app.include_router(alerts.router)
 app.include_router(users.router)
+
+# ── New generic integration router ───────────────────────────────────────────
+app.include_router(integrations_router.router)

@@ -1,3 +1,16 @@
+"""
+Legacy database module – kept for backward compatibility with old routers.
+
+New code should import from:
+  - models.base (engine, session, crypto)
+  - models.integration (IntegrationConfig, Snapshot)
+  - models.settings (Setting, User, Session)
+  - models.ping (PingHost, PingResult)
+  - services.integration / services.snapshot
+
+Old per-integration config + snapshot tables below will be removed once
+all routers are migrated to the generic integration system.
+"""
 import base64
 import hashlib
 import json
