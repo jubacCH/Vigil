@@ -174,7 +174,7 @@
       <span class="text-[--ng-text-muted] text-[10px] font-mono">{{ host_stats|length }} nodes</span>
     </div>
     <div class="p-4">
-      <svg id="node-map" viewBox="0 0 800 500" class="w-full" style="max-height: 500px">
+      <svg id="node-map" viewBox="0 0 1000 600" class="w-full" style="max-height: 550px">
         <defs>
           <filter id="glow-sm"><feGaussianBlur stdDeviation="2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
           <filter id="glow-md"><feGaussianBlur stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
@@ -490,30 +490,27 @@
     const svg = document.getElementById('node-map');
     if (!svg || hosts.length === 0) return;
 
-    const W = 800, H = 500;
+    const W = 1000, H = 600;
     const cx = W / 2, cy = H / 2;
 
     // ── Extract subnet from hostname ────────────────────────────────────
     const ipRe = /^(\d{1,3}\.\d{1,3}\.\d{1,3})\.\d{1,3}$/;
     function getSubnet(h) {
-      // Strip protocol/port from hostname
       let addr = h.hostname.replace(/^https?:\/\//, '').replace(/[:/].*$/, '');
       const m = addr.match(ipRe);
       if (m) return m[1] + '.0/24';
-      // Non-IP: group by check type
       if (h.checkType === 'http' || h.checkType === 'https') return 'External';
       return 'Other';
     }
 
     // ── Group hosts by subnet ───────────────────────────────────────────
-    const subnets = new Map(); // subnet label → host[]
+    const subnets = new Map();
     hosts.forEach(h => {
       const sn = getSubnet(h);
       if (!subnets.has(sn)) subnets.set(sn, []);
       subnets.get(sn).push(h);
     });
 
-    // Sort subnets: biggest first, "External"/"Other" last
     const snKeys = [...subnets.keys()].sort((a, b) => {
       const aExt = a === 'External' || a === 'Other' ? 1 : 0;
       const bExt = b === 'External' || b === 'Other' ? 1 : 0;
@@ -534,22 +531,45 @@
       return { fill: '#475569', glow: 'rgba(71,85,105,0.2)', opacity: 0.25 };
     }
 
-    // ── Layout: subnet hubs on inner ring, hosts on outer ring ──────────
-    const hubR   = Math.min(W, H) * 0.22;                    // subnet hub distance from center
-    const hostR  = Math.min(W, H) * 0.40;                    // host distance from center
-    const nodeR  = Math.max(6, Math.min(16, 180 / Math.sqrt(hosts.length)));
-    const hubNodeR = Math.max(10, Math.min(18, 60 / Math.sqrt(snKeys.length)));
+    // ── Layout parameters ───────────────────────────────────────────────
+    const hubR     = Math.min(W, H) * 0.20;
+    const hostRMin = Math.min(W, H) * 0.34;
+    const hostRMax = Math.min(W, H) * 0.46;
+    const nodeR    = Math.max(6, Math.min(14, 180 / Math.sqrt(hosts.length)));
+    const hubNodeR = Math.max(9, Math.min(16, 55 / Math.sqrt(snKeys.length)));
+
+    // Minimum angular spacing per host (prevents cramming)
+    const minAnglePerHost = (nodeR * 2.8) / hostRMin;
+    // Minimum arc per subnet (so 1-host subnets don't vanish)
+    const minArcPerSubnet = Math.max(0.35, minAnglePerHost * 2);
+
+    // ── Compute arc sizes with minimum guarantees ───────────────────────
+    const rawWeights = snKeys.map(k => subnets.get(k).length);
+    const totalRaw = rawWeights.reduce((a, b) => a + b, 0);
+    // First pass: proportional
+    let arcs = rawWeights.map(w => (w / totalRaw) * 2 * Math.PI);
+    // Second pass: enforce minimums
+    let deficit = 0;
+    arcs = arcs.map((a, i) => {
+      const minArc = Math.max(minArcPerSubnet, rawWeights[i] * minAnglePerHost);
+      if (a < minArc) { deficit += minArc - a; return minArc; }
+      return a;
+    });
+    // Redistribute deficit from larger arcs
+    if (deficit > 0) {
+      const shrinkable = arcs.reduce((s, a, i) => s + (a > minArcPerSubnet ? a : 0), 0);
+      if (shrinkable > 0) {
+        arcs = arcs.map(a => a > minArcPerSubnet ? a * (1 - deficit / shrinkable) : a);
+      }
+    }
 
     let html = '';
-
-    // Angle allocation: each subnet gets an arc proportional to its host count
-    const totalHosts = hosts.length;
-    let angleOffset = -Math.PI / 2; // start at top
+    let angleOffset = -Math.PI / 2;
 
     snKeys.forEach((snLabel, si) => {
       const snHosts = subnets.get(snLabel);
       const snColor = subnetColors[si % subnetColors.length];
-      const arcSize = (snHosts.length / totalHosts) * 2 * Math.PI;
+      const arcSize = arcs[si];
       const hubAngle = angleOffset + arcSize / 2;
 
       // Subnet hub position
@@ -561,42 +581,65 @@
 
       // Subnet arc region (subtle bg)
       if (snHosts.length > 1) {
-        const a1 = angleOffset + 0.02;
-        const a2 = angleOffset + arcSize - 0.02;
-        const r1 = hubR * 0.7, r2 = hostR + nodeR + 16;
+        const a1 = angleOffset + 0.03;
+        const a2 = angleOffset + arcSize - 0.03;
+        const r1 = hubR * 0.6, r2 = hostRMax + nodeR + 20;
         const x1 = cx + Math.cos(a1) * r1, y1 = cy + Math.sin(a1) * r1;
         const x2 = cx + Math.cos(a1) * r2, y2 = cy + Math.sin(a1) * r2;
         const x3 = cx + Math.cos(a2) * r2, y3 = cy + Math.sin(a2) * r2;
         const x4 = cx + Math.cos(a2) * r1, y4 = cy + Math.sin(a2) * r1;
         const lg = arcSize > Math.PI ? 1 : 0;
-        html += `<path d="M${x1},${y1} L${x2},${y2} A${r2},${r2} 0 ${lg},1 ${x3},${y3} L${x4},${y4} A${r1},${r1} 0 ${lg},0 ${x1},${y1}" fill="${snColor}" opacity="0.02"/>`;
+        html += `<path d="M${x1},${y1} L${x2},${y2} A${r2},${r2} 0 ${lg},1 ${x3},${y3} L${x4},${y4} A${r1},${r1} 0 ${lg},0 ${x1},${y1}" fill="${snColor}" opacity="0.018"/>`;
       }
 
-      // Subnet hub glow + body
+      // Subnet hub
       html += `<circle cx="${hx}" cy="${hy}" r="${hubNodeR * 2}" fill="${snColor}" opacity="0.04"/>`;
       html += `<circle cx="${hx}" cy="${hy}" r="${hubNodeR}" fill="${snColor}" opacity="0.25" filter="url(#glow-sm)"/>`;
       html += `<circle cx="${hx - hubNodeR * 0.2}" cy="${hy - hubNodeR * 0.2}" r="${hubNodeR * 0.3}" fill="white" opacity="0.2"/>`;
 
       // Subnet label
-      const labelY = hy > cy ? hy + hubNodeR + 13 : hy - hubNodeR - 5;
-      html += `<text x="${hx}" y="${labelY}" text-anchor="middle" fill="${snColor}" font-family="'JetBrains Mono', monospace" font-size="8" opacity="0.6" font-weight="600">${snLabel}</text>`;
+      const labelY = hy > cy ? hy + hubNodeR + 14 : hy - hubNodeR - 6;
+      html += `<text x="${hx}" y="${labelY}" text-anchor="middle" fill="${snColor}" font-family="'JetBrains Mono', monospace" font-size="8" opacity="0.55" font-weight="600">${snLabel}</text>`;
 
-      // ── Hosts within this subnet ──────────────────────────────────────
+      // ── Hosts within this subnet (multi-ring if many) ─────────────────
+      // How many hosts fit on one ring within this arc?
+      const arcLen = arcSize * hostRMin;
+      const hostsPerRing = Math.max(1, Math.floor(arcLen / (nodeR * 3)));
+      const rings = Math.ceil(snHosts.length / hostsPerRing);
+      const ringStep = (hostRMax - hostRMin) / Math.max(1, rings);
+
       snHosts.forEach((h, hi) => {
-        // Spread hosts evenly within this subnet's arc
-        const hostAngle = snHosts.length === 1
+        const ring = Math.floor(hi / hostsPerRing);
+        const posInRing = hi % hostsPerRing;
+        const hostsThisRing = Math.min(hostsPerRing, snHosts.length - ring * hostsPerRing);
+
+        // Angle: spread evenly within arc for this ring
+        const hostAngle = hostsThisRing === 1
           ? hubAngle
-          : angleOffset + (arcSize * (hi + 0.5) / snHosts.length);
-        const jitter = 0.92 + Math.random() * 0.16;
-        const x = cx + Math.cos(hostAngle) * hostR * jitter;
-        const y = cy + Math.sin(hostAngle) * hostR * jitter;
+          : angleOffset + arcSize * (posInRing + 0.5) / hostsThisRing;
+
+        // Radius: stagger across rings with jitter
+        const baseR = hostRMin + ring * ringStep;
+        const jitter = 0.95 + Math.random() * 0.10;
+        const r = baseR * jitter;
+
+        const x = cx + Math.cos(hostAngle) * r;
+        const y = cy + Math.sin(hostAngle) * r;
         const c = getNodeColor(h);
 
-        // Line: subnet hub → host
-        html += `<line x1="${hx}" y1="${hy}" x2="${x}" y2="${y}" stroke="${c.fill}" stroke-width="0.6" opacity="0.15"/>`;
+        // Line: hub → host (curved for outer rings)
+        if (rings > 1 && ring > 0) {
+          const midR = (hubR + r) * 0.55;
+          const midAngle = (hubAngle + hostAngle) / 2;
+          const mx = cx + Math.cos(midAngle) * midR;
+          const my = cy + Math.sin(midAngle) * midR;
+          html += `<path d="M${hx},${hy} Q${mx},${my} ${x},${y}" fill="none" stroke="${c.fill}" stroke-width="0.5" opacity="0.12"/>`;
+        } else {
+          html += `<line x1="${hx}" y1="${hy}" x2="${x}" y2="${y}" stroke="${c.fill}" stroke-width="0.5" opacity="0.12"/>`;
+        }
 
         // Ambient glow
-        html += `<circle cx="${x}" cy="${y}" r="${nodeR * 2.2}" fill="${c.fill}" opacity="0.04"/>`;
+        html += `<circle cx="${x}" cy="${y}" r="${nodeR * 2}" fill="${c.fill}" opacity="0.04"/>`;
 
         // Node body
         const filter = h.online === false ? 'url(#glow-lg)' : (h.online ? 'url(#glow-sm)' : '');
@@ -608,20 +651,20 @@
 
         // Label
         const lbl = h.name.length > 10 ? h.name.slice(0, 9) + '..' : h.name;
-        html += `<text x="${x}" y="${y + nodeR + 11}" text-anchor="middle" fill="var(--ng-text-secondary)" font-family="'JetBrains Mono', monospace" font-size="8" opacity="0.6">${lbl}</text>`;
+        html += `<text x="${x}" y="${y + nodeR + 11}" text-anchor="middle" fill="var(--ng-text-secondary)" font-family="'JetBrains Mono', monospace" font-size="8" opacity="0.55">${lbl}</text>`;
 
-        // Clickable area
-        html += `<a href="/ping/${h.id}"><circle cx="${x}" cy="${y}" r="${nodeR + 4}" fill="transparent" class="cursor-pointer"><title>${h.name} (${h.hostname})${h.latency !== null ? ' – ' + h.latency + 'ms' : ''}</title></circle></a>`;
+        // Clickable area with tooltip
+        html += `<a href="/ping/${h.id}"><circle cx="${x}" cy="${y}" r="${nodeR + 5}" fill="transparent" class="cursor-pointer"><title>${h.name} (${h.hostname})${h.latency !== null ? ' – ' + h.latency + 'ms' : ''}</title></circle></a>`;
       });
 
       angleOffset += arcSize;
     });
 
     // ── Center hub (gateway) ────────────────────────────────────────────
-    html += `<circle cx="${cx}" cy="${cy}" r="22" fill="var(--ng-primary)" opacity="0.04"/>`;
-    html += `<circle cx="${cx}" cy="${cy}" r="13" fill="var(--ng-primary)" opacity="0.55" filter="url(#glow-md)"/>`;
+    html += `<circle cx="${cx}" cy="${cy}" r="24" fill="var(--ng-primary)" opacity="0.04"/>`;
+    html += `<circle cx="${cx}" cy="${cy}" r="14" fill="var(--ng-primary)" opacity="0.5" filter="url(#glow-md)"/>`;
     html += `<circle cx="${cx - 3.5}" cy="${cy - 3.5}" r="4" fill="white" opacity="0.25"/>`;
-    html += `<text x="${cx}" y="${cy + 28}" text-anchor="middle" fill="var(--ng-primary)" font-family="'JetBrains Mono', monospace" font-size="9" opacity="0.5" font-weight="600">CORE</text>`;
+    html += `<text x="${cx}" y="${cy + 30}" text-anchor="middle" fill="var(--ng-primary)" font-family="'JetBrains Mono', monospace" font-size="9" opacity="0.45" font-weight="600">CORE</text>`;
 
     svg.innerHTML = svg.innerHTML + html;
   })();
