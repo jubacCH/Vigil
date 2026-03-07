@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+{% block title %}{{ config.name }} – Redfish/iDRAC{% endblock %}
+
+{% block content %}
+<div class="p-8">
+
+<div class="flex items-center justify-between mb-6">
+    <div class="flex items-center gap-3">
+        <a href="/integration/redfish" title="Back to Redfish" class="p-1.5 rounded-lg text-slate-500 hover:text-white hover:bg-white/[0.06] transition-colors">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+            </svg>
+        </a>
+        <h1 class="ng-heading text-2xl text-[--ng-text-primary]">{{ config.name }}</h1>
+        {% if data %}
+        <span class="ml-2 px-2 py-0.5 rounded text-[10px] font-mono {% if data.get('healthy') %}bg-ng-success/15 text-ng-success{% else %}bg-ng-critical/15 text-ng-critical{% endif %}">
+            {{ data.get('health_summary', data.get('status', 'Unknown')) }}
+        </span>
+        {% endif %}
+    </div>
+    <div class="flex gap-2">
+        <form method="post" action="/integration/redfish/{{ config.id }}/refresh">
+            <button type="submit" class="ng-btn ng-btn-ghost flex items-center gap-1.5">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                </svg>
+                Refresh
+            </button>
+        </form>
+        <button onclick="document.getElementById('editModal').classList.remove('hidden')" class="ng-btn ng-btn-ghost">Edit</button>
+        <form method="post" action="/integration/redfish/{{ config.id }}/delete" onsubmit="return confirm('Delete this instance?')">
+            <button type="submit" class="bg-ng-critical/10 hover:bg-ng-critical/20 text-ng-critical border border-ng-critical/20 px-3 py-1.5 rounded-lg text-sm transition-colors">Delete</button>
+        </form>
+    </div>
+</div>
+
+{% if error %}
+<div class="bg-ng-critical/10 border border-ng-critical/20 text-ng-critical px-4 py-3 rounded-lg mb-4">
+    <p class="font-medium text-sm">Connection Error</p><p class="text-xs mt-1 font-mono">{{ error }}</p>
+</div>
+{% endif %}
+
+{% if snap %}<p class="text-xs text-[--ng-text-muted] mb-4 font-mono">Last updated: {{ snap.timestamp.strftime('%Y-%m-%d %H:%M:%S') if snap.timestamp else '—' }}</p>{% endif %}
+
+{% if data %}
+<!-- System info + metrics -->
+<div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+    <div class="glass-card p-4 text-center">
+        <p class="text-2xl font-bold text-[--ng-text-primary]">{{ data.get('power_state', '—') }}</p>
+        <p class="metric-label !text-[10px]">Power State</p>
+    </div>
+    <div class="glass-card p-4 text-center">
+        <p class="text-2xl font-bold text-[--ng-text-primary]">{{ data.get('cpu_count', 0) }}</p>
+        <p class="metric-label !text-[10px]">CPUs</p>
+    </div>
+    <div class="glass-card p-4 text-center">
+        <p class="text-2xl font-bold text-[--ng-text-primary]">{{ data.get('memory_gb', 0) }}<span class="text-sm text-[--ng-text-muted]"> GB</span></p>
+        <p class="metric-label !text-[10px]">Memory</p>
+    </div>
+    <div class="glass-card p-4 text-center">
+        <p class="text-2xl font-bold text-[--ng-text-primary]">{% if data.get('power_watts') %}{{ data.get('power_watts') }}W{% else %}—{% endif %}</p>
+        <p class="metric-label !text-[10px]">Power Draw</p>
+    </div>
+</div>
+
+<!-- Hardware info -->
+<div class="glass-card p-4 mb-6">
+    <h2 class="metric-label !text-[10px] mb-3">Hardware</h2>
+    <div class="space-y-2.5">
+        {% for label, val in [('Manufacturer', data.get('manufacturer', '—')), ('Model', data.get('model', '—')), ('Serial', data.get('serial', '—')), ('BIOS', data.get('bios_version', '—'))] %}
+        <div class="flex justify-between gap-4">
+            <span class="text-[--ng-text-muted] text-xs">{{ label }}</span>
+            <span class="text-[--ng-text-secondary] text-xs font-mono text-right truncate max-w-[60%]">{{ val }}</span>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Temperatures & Fans -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+    {% set temps = data.get('temperatures', []) %}
+    {% if temps %}
+    <div class="glass-card p-4">
+        <h2 class="metric-label !text-[10px] mb-3">Temperatures</h2>
+        <div class="space-y-2">
+            {% for t in temps %}
+            <div class="flex justify-between gap-4">
+                <span class="text-[--ng-text-secondary] text-xs truncate">{{ t.get('name', '?') }}</span>
+                <span class="text-xs font-mono {% if t.get('reading_c', 0) > (t.get('threshold_c', 80)) %}text-ng-critical{% elif t.get('reading_c', 0) > 70 %}text-ng-warning{% else %}text-[--ng-text-secondary]{% endif %}">{{ t.get('reading_c', '—') }}°C</span>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+    {% set fans = data.get('fans', []) %}
+    {% if fans %}
+    <div class="glass-card p-4">
+        <h2 class="metric-label !text-[10px] mb-3">Fans</h2>
+        <div class="space-y-2">
+            {% for f in fans %}
+            <div class="flex justify-between gap-4">
+                <span class="text-[--ng-text-secondary] text-xs truncate">{{ f.get('name', '?') }}</span>
+                <div class="flex items-center gap-2">
+                    <span class="w-1.5 h-1.5 rounded-full {% if f.get('status') == 'OK' %}bg-ng-success{% else %}bg-ng-critical{% endif %}"></span>
+                    <span class="text-xs font-mono text-[--ng-text-secondary]">{{ f.get('rpm', '—') }} RPM</span>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+{% else %}
+<div class="text-center py-16 text-[--ng-text-secondary]"><p class="text-lg mb-2">No data available</p><p class="text-sm">Waiting for the first data collection or click Refresh.</p></div>
+{% endif %}
+
+<!-- Edit Modal -->
+<div id="editModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/70">
+    <div class="glass-elevated rounded-xl p-6 w-full max-w-lg mx-4">
+        <h2 class="ng-heading text-lg text-[--ng-text-primary] mb-4">Edit {{ config.name }}</h2>
+        <form method="post" action="/integration/redfish/{{ config.id }}/edit" class="space-y-4">
+            <div><label class="block text-sm text-[--ng-text-secondary] mb-1">Name</label>
+                <input type="text" name="name" value="{{ config.name }}" required class="ng-input"></div>
+            {% for field in integration.config_fields %}
+            <div><label class="block text-sm text-[--ng-text-secondary] mb-1">{{ field.label }}</label>
+                {% if field.field_type == "password" %}<input type="password" name="{{ field.key }}" class="ng-input" placeholder="Leave empty to keep current">
+                {% elif field.field_type == "checkbox" %}<label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" name="{{ field.key }}" value="on" {% if config_dict.get(field.key) %}checked{% endif %} class="rounded bg-white/[0.03] border-[--ng-glass-border] accent-[--ng-primary]"><span class="text-sm text-[--ng-text-primary]">{{ field.label }}</span></label>
+                {% else %}<input type="{{ field.field_type or 'text' }}" name="{{ field.key }}" value="{{ config_dict.get(field.key, '') }}" class="ng-input" placeholder="{{ field.placeholder }}">{% endif %}
+            </div>{% endfor %}
+            <div class="flex justify-end gap-3 pt-2">
+                <button type="button" onclick="document.getElementById('editModal').classList.add('hidden')" class="ng-btn ng-btn-ghost">Cancel</button>
+                <button type="submit" class="ng-btn ng-btn-primary">Save Changes</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+</div>
+{% endblock %}
