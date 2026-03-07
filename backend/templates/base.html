@@ -160,7 +160,7 @@
         {% set _nc = request.state.nav_counts %}
         {% set _any = _nc.proxmox > 0 or _nc.unifi > 0 or _nc.unas > 0 or _nc.portainer > 0 or _nc.truenas > 0 or _nc.synology > 0 or _nc.pihole > 0 or _nc.adguard > 0 or _nc.firewall > 0 or _nc.hass > 0 or _nc.gitea > 0 or _nc.phpipam > 0 or _nc.speedtest > 0 or _nc.ups > 0 or _nc.redfish > 0 %}
         {% set integ_active = active_page in ('proxmox', 'unifi', 'unas', 'pihole', 'adguard', 'portainer', 'truenas', 'synology', 'firewall', 'hass', 'gitea', 'phpipam', 'ups', 'redfish', 'speedtest') %}
-        <div {% if not _any and not integ_active %}style="display:none"{% endif %}>
+        <div>
           <button onclick="toggleIntegrations()"
                   class="ng-nav-item w-full justify-between {% if integ_active %}ng-nav-active{% endif %}">
             <span class="flex items-center gap-2.5">
@@ -539,17 +539,21 @@
       {name: 'Status', url: '/system/status', section: 'Pages'},
       {name: 'Settings', url: '/settings', section: 'Pages'},
       {name: 'Users', url: '/users', section: 'Pages'},
-      {name: 'Proxmox', url: '/proxmox', section: 'Integrations'},
-      {name: 'UniFi', url: '/unifi', section: 'Integrations'},
-      {name: 'Portainer', url: '/portainer', section: 'Integrations'},
-      {name: 'TrueNAS', url: '/truenas', section: 'Integrations'},
-      {name: 'Synology', url: '/synology', section: 'Integrations'},
-      {name: 'Pi-hole', url: '/pihole', section: 'Integrations'},
-      {name: 'AdGuard', url: '/adguard', section: 'Integrations'},
-      {name: 'Firewall', url: '/firewall', section: 'Integrations'},
-      {name: 'Home Assistant', url: '/hass', section: 'Integrations'},
-      {name: 'Gitea', url: '/gitea', section: 'Integrations'},
-      {name: 'Speedtest', url: '/speedtest', section: 'Integrations'},
+      {name: 'Proxmox', url: '/integration/proxmox', section: 'Integrations'},
+      {name: 'UniFi', url: '/integration/unifi', section: 'Integrations'},
+      {name: 'UniFi NAS', url: '/integration/unas', section: 'Integrations'},
+      {name: 'Portainer', url: '/integration/portainer', section: 'Integrations'},
+      {name: 'TrueNAS', url: '/integration/truenas', section: 'Integrations'},
+      {name: 'Synology', url: '/integration/synology', section: 'Integrations'},
+      {name: 'Pi-hole', url: '/integration/pihole', section: 'Integrations'},
+      {name: 'AdGuard', url: '/integration/adguard', section: 'Integrations'},
+      {name: 'Firewall', url: '/integration/firewall', section: 'Integrations'},
+      {name: 'Home Assistant', url: '/integration/hass', section: 'Integrations'},
+      {name: 'Gitea', url: '/integration/gitea', section: 'Integrations'},
+      {name: 'phpIPAM', url: '/integration/phpipam', section: 'Integrations'},
+      {name: 'Speedtest', url: '/integration/speedtest', section: 'Integrations'},
+      {name: 'UPS / NUT', url: '/integration/ups', section: 'Integrations'},
+      {name: 'Redfish', url: '/integration/redfish', section: 'Integrations'},
     ];
 
     function openCmdK() {
