@@ -10,12 +10,6 @@
         <p class="text-xs text-[--ng-text-muted] font-mono mt-1">Lightweight host monitoring agents</p>
     </div>
     <div class="flex gap-2">
-        <a href="/agents/download/nodeglow-agent.py" class="ng-btn ng-btn-ghost flex items-center gap-1.5">
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
-            </svg>
-            Download Agent
-        </a>
         <button onclick="document.getElementById('addModal').classList.remove('hidden')" class="ng-btn ng-btn-primary flex items-center gap-1.5">
             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
@@ -33,9 +27,9 @@
     <p class="text-lg mb-2">No agents registered</p>
     <p class="text-sm mb-4">Deploy the Nodeglow agent on your hosts to collect system metrics.</p>
     <div class="flex gap-3 justify-center">
-        <a href="/agents/download/nodeglow-agent.py" class="ng-btn ng-btn-ghost">Download Agent</a>
         <button onclick="document.getElementById('addModal').classList.remove('hidden')" class="ng-btn ng-btn-primary">Add Agent</button>
     </div>
+    <p class="text-xs text-[--ng-text-muted] mt-3">Add an agent first, then download it with the token pre-configured.</p>
 </div>
 {% else %}
 

@@ -176,10 +176,13 @@ async def agent_add(request: Request):
     token = secrets.token_hex(24)  # 48 char hex token
 
     async with AsyncSessionLocal() as db:
-        db.add(Agent(name=name, token=token))
+        agent = Agent(name=name, token=token)
+        db.add(agent)
         await db.commit()
+        await db.refresh(agent)
+        agent_id = agent.id
 
-    return RedirectResponse("/agents", status_code=302)
+    return RedirectResponse(f"/agents/{agent_id}", status_code=302)
 
 
 # ── CRUD: Delete agent ──────────────────────────────────────────────────────
@@ -206,15 +209,70 @@ async def agent_regenerate_token(request: Request, agent_id: int):
     return RedirectResponse(f"/agents/{agent_id}", status_code=302)
 
 
-# ── Download: Agent script ──────────────────────────────────────────────────
+# ── Download: Agent script (with embedded token + server) ────────────────────
 
-@router.get("/agents/download/nodeglow-agent.py")
-async def agent_download(request: Request):
-    return FileResponse(
-        "static/nodeglow-agent.py",
-        filename="nodeglow-agent.py",
-        media_type="text/x-python",
+@router.get("/agents/{agent_id}/download/{platform}")
+async def agent_download_enrolled(request: Request, agent_id: int, platform: str):
+    """Download agent script with token + server URL pre-configured."""
+    async with AsyncSessionLocal() as db:
+        result = await db.execute(select(Agent).where(Agent.id == agent_id))
+        agent = result.scalar_one_or_none()
+    if not agent:
+        return JSONResponse({"error": "Agent not found"}, status_code=404)
+
+    server_url = f"{request.url.scheme}://{request.url.netloc}"
+    token = agent.token
+
+    # Pick the right template file
+    if platform == "windows":
+        template_file = "static/nodeglow-agent-windows.py"
+        filename = "nodeglow-agent-windows.py"
+    else:
+        template_file = "static/nodeglow-agent-linux.py"
+        filename = "nodeglow-agent-linux.py"
+
+    with open(template_file) as f:
+        script = f.read()
+
+    # Inject auto-enrollment: add config block right after __version__ line
+    enrollment_block = f'''
+
+# ── Auto-enrolled configuration (baked in at download) ──────────────────────
+_ENROLLED_SERVER = "{server_url}"
+_ENROLLED_TOKEN  = "{token}"
+'''
+    script = script.replace(
+        f'__version__ = "1.1.0"\n',
+        f'__version__ = "1.1.0"\n{enrollment_block}',
     )
+
+    # Patch the defaults in argparse to use enrolled values
+    script = script.replace(
+        """default=os.environ.get("NODEGLOW_SERVER", "")""",
+        """default=os.environ.get("NODEGLOW_SERVER", _ENROLLED_SERVER)""",
+    )
+    script = script.replace(
+        """default=os.environ.get("NODEGLOW_TOKEN", "")""",
+        """default=os.environ.get("NODEGLOW_TOKEN", _ENROLLED_TOKEN)""",
+    )
+
+    from fastapi.responses import Response
+    return Response(
+        content=script,
+        media_type="text/x-python",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+# Generic download (without enrollment)
+@router.get("/agents/download/{platform}")
+async def agent_download_generic(request: Request, platform: str):
+    """Download generic agent script (no token baked in)."""
+    if platform == "windows":
+        return FileResponse("static/nodeglow-agent-windows.py",
+                            filename="nodeglow-agent-windows.py", media_type="text/x-python")
+    return FileResponse("static/nodeglow-agent-linux.py",
+                        filename="nodeglow-agent-linux.py", media_type="text/x-python")
 
 
 # ── API: List agents (JSON) ─────────────────────────────────────────────────
