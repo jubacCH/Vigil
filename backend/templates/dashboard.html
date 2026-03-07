@@ -377,11 +377,14 @@
       time += 0.016;
       ctx.clearRect(0, 0, W, H);
 
-      // Core glow
-      const cg = ctx.createRadialGradient(CX, CY, 0, CX, CY, maxR * 0.18);
-      cg.addColorStop(0, 'rgba(120,100,255,0.12)');
-      cg.addColorStop(0.6, 'rgba(80,60,200,0.04)');
-      cg.addColorStop(1, 'transparent');
+      // Core glow – wide, smooth radial gradient
+      const cg = ctx.createRadialGradient(CX, CY, 0, CX, CY, maxR * 0.85);
+      cg.addColorStop(0,   'rgba(120,100,255,0.14)');
+      cg.addColorStop(0.15,'rgba(110,90,240,0.10)');
+      cg.addColorStop(0.35,'rgba(90,70,220,0.06)');
+      cg.addColorStop(0.55,'rgba(70,55,200,0.03)');
+      cg.addColorStop(0.75,'rgba(50,40,180,0.01)');
+      cg.addColorStop(1,   'transparent');
       ctx.fillStyle = cg;
       ctx.fillRect(0, 0, W, H);
 
