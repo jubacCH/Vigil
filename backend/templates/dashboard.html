@@ -273,39 +273,24 @@
   </div>
   {% endif %}
 
-  <!-- ── CONSTELLATION MAP ───────────────────────────────────────────────── -->
+  <!-- ── GRAVITY WELL ────────────────────────────────────────────────────── -->
   {% if host_stats %}
   <div class="mb-5 glass-card-static !p-0 overflow-hidden">
     <div class="px-5 py-3 border-b border-white/[0.06] flex items-center justify-between cursor-pointer section-header" data-section="nodemap">
-      <h2 class="metric-label !text-[10px]">Constellation</h2>
+      <h2 class="metric-label !text-[10px]">Gravity Well</h2>
       <div class="flex items-center gap-3">
-        <span class="text-[--ng-text-muted] text-[10px] font-mono">{{ host_stats|length }} stars</span>
+        <span class="text-[--ng-text-muted] text-[10px] font-mono">{{ host_stats|length }} nodes</span>
         <svg class="w-3.5 h-3.5 text-[--ng-text-muted] section-chevron transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
       </div>
     </div>
     <div class="section-body" id="nodemap-body">
-      <!-- Desktop: Constellation Map -->
-      <div class="hidden md:block relative overflow-hidden rounded-lg" id="node-map-wrap"
-           style="padding:16px;background:
-             radial-gradient(ellipse at 20% 30%, rgba(99,102,241,0.06) 0%, transparent 60%),
-             radial-gradient(ellipse at 80% 70%, rgba(139,92,246,0.04) 0%, transparent 55%),
-             radial-gradient(ellipse at 50% 50%, rgba(6,10,23,0.5) 0%, transparent 100%)">
-        <svg id="node-map" viewBox="0 0 1200 700" class="w-full">
-          <defs>
-            <filter id="cst-blur"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-            <filter id="cst-glow"><feGaussianBlur stdDeviation="5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-            <style>
-              .cst-twinkle { animation: cstTwinkle var(--dur,4s) ease-in-out infinite; }
-              .cst-pulse   { animation: cstPulse 1.5s ease-in-out infinite; }
-              .cst-pulse-slow { animation: cstPulse 2.5s ease-in-out infinite; }
-              @keyframes cstTwinkle { 0%,100%{opacity:1} 50%{opacity:0.45} }
-              @keyframes cstPulse   { 0%,100%{opacity:1} 50%{opacity:0.15} }
-            </style>
-          </defs>
-        </svg>
-        <!-- Rich tooltip overlay -->
+      <!-- Desktop: Gravity Well Canvas -->
+      <div class="hidden md:block relative overflow-hidden" id="node-map-wrap"
+           style="background: radial-gradient(circle at 50% 50%, rgba(99,102,241,0.06) 0%, rgba(6,10,23,0.5) 70%, #0a0c1a 100%);">
+        <canvas id="gravity-canvas" style="width:100%;display:block;"></canvas>
+        <!-- Tooltip overlay -->
         <div id="node-tooltip" class="hidden absolute pointer-events-none z-20 !rounded-lg min-w-[190px] text-xs"
-             style="backdrop-filter:blur(24px);background:rgba(10,12,28,0.88);border:1px solid rgba(255,255,255,0.08);padding:12px">
+             style="backdrop-filter:blur(24px);background:rgba(10,12,28,0.9);border:1px solid rgba(255,255,255,0.08);padding:12px">
           <div class="flex items-center gap-2 mb-2">
             <span id="tt-dot" class="w-2 h-2 rounded-full shrink-0"></span>
             <span id="tt-name" class="text-[--ng-text-primary] font-semibold text-sm truncate"></span>
@@ -641,172 +626,210 @@
     {% endfor %}
   ];
 
-  // ── Topology Node Map ───────────────────────────────────────────────────
-  const nodePositions = new Map(); // id → {x, y}
-  let _nodeMapObserver = null;
+  // ── Gravity Well ────────────────────────────────────────────────────────
+  let _gravityAnim = null;
+  let _gravityObserver = null;
+  let _gravityParticles = null;
 
-  function renderNodeMap() {
-    const svg = document.getElementById('node-map');
-    const wrap = document.getElementById('node-map-wrap');
-    if (!svg || !wrap || hosts.length === 0) return;
-    if (wrap.clientWidth < 100) return;
-
-    Array.from(svg.children).forEach(ch => {
-      if (ch.tagName.toLowerCase() !== 'defs') ch.remove();
-    });
-    nodePositions.clear();
-
-    const W = wrap.clientWidth - 32;
-    const S = Math.max(0.7, Math.min(1.6, W / 1100));
-    const PAD = 16;
-
-    // Seeded random for consistent star placement
-    function makeRng(seed) {
-      let s = Math.abs(seed) || 1;
-      return () => { s = (s * 16807) % 2147483647; return s / 2147483647; };
-    }
-    function nameHash(n) {
-      let h = 5381;
-      for (let i = 0; i < n.length; i++) h = ((h << 5) + h + n.charCodeAt(i)) & 0x7fffffff;
-      return h;
-    }
-
-    // ── Sort: offline first, then maintenance, then online by name ────────
-    const sorted = [...hosts].sort((a, b) => {
-      const statusOrder = h => h.online === false ? 0 : h.maintenance ? 1 : h.online === null ? 2 : 3;
-      const sa = statusOrder(a), sb = statusOrder(b);
-      if (sa !== sb) return sa - sb;
-      return a.name.localeCompare(b.name);
-    });
-
-    // ── Star visual properties ────────────────────────────────────────────
-    function starColor(h) {
-      if (h.online === false) return { fill: '#FF4060', glow: '#FF2050' };
-      if (h.maintenance)      return { fill: '#FBBF24', glow: '#F59E0B' };
-      if (h.online === null)  return { fill: '#475569', glow: '#334155' };
-      const l = h.latency;
-      if (l !== null && l > 100) return { fill: '#FFCFA0', glow: '#FF9F43' };
-      if (l !== null && l > 40)  return { fill: '#FFF0D0', glow: '#EAB308' };
-      return { fill: '#D4E0FF', glow: '#6C8EFF' };
-    }
-    function starRadius(h) {
-      // Offline stars slightly larger to stand out
-      if (h.online === false) return 5.5 * S;
-      return 4 * S;
-    }
-    function starBrightness(h) {
-      if (h.online === false) return 0.95;
-      if (h.uptimePct !== null) return 0.35 + (h.uptimePct / 100) * 0.6;
-      return 0.5;
-    }
-
-    // ── Render helpers ────────────────────────────────────────────────────
-    let starsHtml = '';
-
-    function addStar(x, y, h) {
-      const r = starRadius(h);
-      const c = starColor(h);
-      const b = starBrightness(h);
-      const delay = (nameHash(h.name) % 7000) / 1000;
-      const dur = 3 + (nameHash(h.name) % 4000) / 1000;
-      const anim = h.online === false ? 'cst-pulse' : h.maintenance ? 'cst-pulse-slow' : 'cst-twinkle';
-
-      starsHtml += `<g class="${anim}" style="animation-delay:${delay}s;animation-duration:${dur}s">`;
-      starsHtml += `<circle cx="${x}" cy="${y}" r="${r*3.5}" fill="${c.glow}" opacity="${b*0.06}"/>`;
-      starsHtml += `<circle cx="${x}" cy="${y}" r="${r*2}" fill="${c.glow}" opacity="${b*0.12}" filter="url(#cst-blur)"/>`;
-      starsHtml += `<circle cx="${x}" cy="${y}" r="${r}" fill="${c.fill}" opacity="${b}"/>`;
-      starsHtml += `<circle cx="${x}" cy="${y}" r="${r*0.25}" fill="#fff" opacity="${b*0.65}" style="pointer-events:none"/>`;
-      starsHtml += `</g>`;
-
-      const hitR = Math.max(r + 8, 12);
-      starsHtml += `<circle cx="${x}" cy="${y}" r="${hitR}" fill="transparent" class="node-hit cursor-pointer" data-host-id="${h.id}"/>`;
-      const maxLen = Math.round(12 * S);
-      const lbl = h.name.length > maxLen ? h.name.slice(0, maxLen - 1) + '..' : h.name;
-      const fs = Math.round(8.5 * S);
-      const labelY = y + r + Math.round(12 * S);
-      starsHtml += `<text x="${x}" y="${labelY}" text-anchor="middle" fill="var(--ng-text-secondary)" font-family="'JetBrains Mono',monospace" font-size="${fs}" opacity="0.5" style="pointer-events:none">${lbl}</text>`;
-
-      nodePositions.set(h.id, {x, y});
-    }
-
-    // ── Background star dust ──────────────────────────────────────────────
-    let bgHtml = '';
-    const bgRng = makeRng(42);
-
-    // ── Layout: compact grid with gentle jitter ───────────────────────────
-    const availW = W - PAD * 2;
-    const cellW = Math.max(55, Math.round(80 * S));
-    const cellH = Math.max(40, Math.round(42 * S));
-    const cols = Math.max(3, Math.floor(availW / cellW));
-    const spacingX = availW / cols;
-    const rows = Math.ceil(sorted.length / cols);
-    let maxY = PAD;
-
-    sorted.forEach((h, i) => {
-      const rng = makeRng(nameHash(h.name));
-      const col = i % cols;
-      const row = Math.floor(i / cols);
-      const jx = (rng() - 0.5) * spacingX * 0.15;
-      const jy = (rng() - 0.5) * 6;
-      const x = PAD + spacingX * 0.5 + col * spacingX + jx;
-      const y = PAD + cellH * 0.5 + row * cellH + jy;
-      addStar(x, y, h);
-      maxY = Math.max(maxY, y + Math.round(16 * S));
-    });
-    maxY += 10;
-
-    const H = Math.max(100, maxY);
-
-    // Background dust
-    for (let i = 0; i < 100; i++) {
-      const bx = bgRng() * W;
-      const by = bgRng() * H;
-      const br = 0.2 + bgRng() * 0.7;
-      const bo = 0.03 + bgRng() * 0.1;
-      bgHtml += `<circle cx="${bx}" cy="${by}" r="${br}" fill="#C8D6FF" opacity="${bo}"/>`;
-    }
-    for (let i = 0; i < 10; i++) {
-      const bx = bgRng() * W;
-      const by = bgRng() * H;
-      bgHtml += `<circle cx="${bx}" cy="${by}" r="${0.4 + bgRng() * 0.4}" fill="#E8EEFF" opacity="${0.12 + bgRng() * 0.12}"/>`;
-    }
-
-    svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
-    const tmp = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-    tmp.innerHTML = bgHtml + starsHtml;
-    while (tmp.firstChild) svg.appendChild(tmp.firstChild);
+  function getHostColor(h) {
+    if (h.online === false) return { r: 255, g: 48, b: 96 };
+    if (h.maintenance)      return { r: 251, g: 191, b: 36 };
+    if (h.online === null)  return { r: 71, g: 85, b: 105 };
+    const l = h.latency;
+    if (l !== null && l > 100) return { r: 255, g: 160, b: 80 };
+    if (l !== null && l > 40)  return { r: 251, g: 211, b: 100 };
+    if (l !== null && l > 10)  return { r: 52, g: 211, b: 153 };
+    return { r: 108, g: 142, b: 255 };
   }
 
-  function initNodeMap(attempt) {
+  function initGravityWell(attempt) {
     attempt = attempt || 0;
-    const svg = document.getElementById('node-map');
+    const canvas = document.getElementById('gravity-canvas');
     const wrap = document.getElementById('node-map-wrap');
-    if (!svg || !wrap || hosts.length === 0) return;
-
-    // Layout may not be computed yet after SPA swap — retry up to 2s
+    if (!canvas || !wrap || hosts.length === 0) return;
     if (wrap.clientWidth < 50) {
-      if (attempt < 20) setTimeout(() => initNodeMap(attempt + 1), 100);
+      if (attempt < 20) setTimeout(() => initGravityWell(attempt + 1), 100);
       return;
     }
 
-    renderNodeMap();
+    // Cleanup previous animation
+    if (_gravityAnim) { cancelAnimationFrame(_gravityAnim); _gravityAnim = null; }
+    if (_gravityObserver) { _gravityObserver.disconnect(); _gravityObserver = null; }
 
-    // Re-render on resize / section expand
-    let resizeTimer;
-    if (_nodeMapObserver) _nodeMapObserver.disconnect();
-    _nodeMapObserver = new ResizeObserver(() => {
-      clearTimeout(resizeTimer);
-      resizeTimer = setTimeout(renderNodeMap, 100);
-    });
-    _nodeMapObserver.observe(wrap);
+    const ctx = canvas.getContext('2d');
+    let W, H, CX, CY, maxR;
 
-    // ── Rich Tooltip ──────────────────────────────────────────────────────
-    const tooltip = document.getElementById('node-tooltip');
+    function resize() {
+      const rect = wrap.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      W = rect.width;
+      H = Math.min(W * 0.55, 500);
+      canvas.width = W * dpr;
+      canvas.height = H * dpr;
+      canvas.style.height = H + 'px';
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      CX = W / 2;
+      CY = H / 2;
+      maxR = Math.min(CX, CY) * 0.9;
+    }
+    resize();
+
+    _gravityObserver = new ResizeObserver(() => resize());
+    _gravityObserver.observe(wrap);
+
+    // Build particles (once, reuse across resizes)
+    if (!_gravityParticles || _gravityParticles.length !== hosts.length) {
+      _gravityParticles = hosts.map((h, i) => {
+        let targetR;
+        if (h.online === false) {
+          targetR = 0.82 + Math.random() * 0.16;
+        } else if (h.maintenance) {
+          targetR = 0.5 + Math.random() * 0.2;
+        } else {
+          const l = Math.min(h.latency || 1, 200);
+          targetR = 0.12 + (Math.log(l + 1) / Math.log(201)) * 0.58;
+        }
+        const angle = (i / hosts.length) * Math.PI * 2 + (Math.random() - 0.5) * 0.4;
+        const speed = h.online === false
+          ? 0.0002 + Math.random() * 0.0002
+          : 0.0006 + (1 / Math.max(1, h.latency || 1)) * 0.0006;
+        return {
+          host: h, angle, radius: targetR, targetRadius: targetR,
+          speed: speed * (Math.random() > 0.5 ? 1 : -1),
+          size: h.online === false ? 4.5 : 3 + ((h.uptimePct || 50) / 100) * 1.8,
+          trail: [],
+          wobble: Math.random() * 0.015,
+          wobblePhase: Math.random() * Math.PI * 2,
+          driftSpeed: h.online === false ? 0.00008 : 0,
+          screenX: 0, screenY: 0,
+        };
+      });
+    }
+
+    // Background stars (seeded)
+    const bgStars = [];
+    let seed = 42;
+    const rng = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+    for (let i = 0; i < 150; i++) {
+      bgStars.push({
+        x: rng() * 2 - 1, y: rng() * 2 - 1,
+        r: 0.2 + rng() * 0.5, o: 0.03 + rng() * 0.07,
+        tw: 0.5 + rng() * 2, tp: rng() * Math.PI * 2,
+      });
+    }
+
+    let time = 0;
+    let hoveredIdx = -1;
     const hostMap = new Map(hosts.map(h => [h.id, h]));
+    const tooltip = document.getElementById('node-tooltip');
 
-    function showTooltip(e, hostId) {
-      const h = hostMap.get(hostId);
-      if (!h) return;
+    function draw() {
+      time += 0.016;
+      ctx.clearRect(0, 0, W, H);
+
+      // Concentric orbit rings
+      ctx.strokeStyle = 'rgba(100,120,255,0.035)';
+      ctx.lineWidth = 0.5;
+      for (let i = 1; i <= 5; i++) {
+        ctx.beginPath();
+        ctx.arc(CX, CY, maxR * (i / 5), 0, Math.PI * 2);
+        ctx.stroke();
+      }
+
+      // Core glow
+      const cg = ctx.createRadialGradient(CX, CY, 0, CX, CY, maxR * 0.18);
+      cg.addColorStop(0, 'rgba(120,100,255,0.12)');
+      cg.addColorStop(0.6, 'rgba(80,60,200,0.04)');
+      cg.addColorStop(1, 'transparent');
+      ctx.fillStyle = cg;
+      ctx.fillRect(0, 0, W, H);
+
+      // Core pulse
+      const cp = 0.5 + Math.sin(time * 1.5) * 0.15;
+      ctx.beginPath();
+      ctx.arc(CX, CY, 5 + cp * 3, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(140,120,255,${0.25 + cp * 0.15})`;
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(CX, CY, 2.5, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(200,190,255,0.5)';
+      ctx.fill();
+
+      // Background stars
+      bgStars.forEach(s => {
+        const tw = 0.5 + Math.sin(time * s.tw + s.tp) * 0.5;
+        ctx.beginPath();
+        ctx.arc(CX + s.x * maxR, CY + s.y * maxR * (H / W * 1.8), s.r, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(200,210,255,${s.o * tw})`;
+        ctx.fill();
+      });
+
+      // Particles
+      _gravityParticles.forEach((p, i) => {
+        p.angle += p.speed;
+        if (p.host.online === false) p.radius = Math.min(0.98, p.radius + p.driftSpeed);
+        const wobbleOff = Math.sin(time * 1.2 + p.wobblePhase) * p.wobble;
+        const r = (p.radius + wobbleOff) * maxR;
+
+        const x = CX + Math.cos(p.angle) * r;
+        const y = CY + Math.sin(p.angle) * r * (H / W * 1.8);
+        p.screenX = x;
+        p.screenY = y;
+
+        p.trail.push({ x, y });
+        if (p.trail.length > 10) p.trail.shift();
+
+        const c = getHostColor(p.host);
+        const isHov = i === hoveredIdx;
+        const alpha = isHov ? 1 : (p.host.online === false ? 0.65 + Math.sin(time * 4) * 0.3 : 0.8);
+
+        // Trail
+        if (p.trail.length > 2) {
+          ctx.beginPath();
+          ctx.moveTo(p.trail[0].x, p.trail[0].y);
+          for (let t = 1; t < p.trail.length; t++) ctx.lineTo(p.trail[t].x, p.trail[t].y);
+          ctx.strokeStyle = `rgba(${c.r},${c.g},${c.b},${isHov ? 0.25 : 0.06})`;
+          ctx.lineWidth = isHov ? 1.5 : 0.8;
+          ctx.stroke();
+        }
+
+        // Glow
+        const glowR = (isHov ? p.size * 5 : p.size * 3);
+        const gl = ctx.createRadialGradient(x, y, 0, x, y, glowR);
+        gl.addColorStop(0, `rgba(${c.r},${c.g},${c.b},${alpha * 0.18})`);
+        gl.addColorStop(1, 'transparent');
+        ctx.fillStyle = gl;
+        ctx.fillRect(x - glowR, y - glowR, glowR * 2, glowR * 2);
+
+        // Body
+        const sz = isHov ? p.size * 1.4 : p.size;
+        ctx.beginPath();
+        ctx.arc(x, y, sz, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(${c.r},${c.g},${c.b},${alpha})`;
+        ctx.fill();
+
+        // Core
+        ctx.beginPath();
+        ctx.arc(x, y, sz * 0.28, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(255,255,255,${alpha * 0.55})`;
+        ctx.fill();
+
+        // Label (always for offline/hovered, always show name)
+        const showLabel = isHov || p.host.online === false;
+        if (showLabel) {
+          ctx.font = `${isHov ? 10 : 8}px 'JetBrains Mono', monospace`;
+          ctx.fillStyle = `rgba(255,255,255,${isHov ? 0.85 : 0.45})`;
+          ctx.textAlign = 'center';
+          ctx.fillText(p.host.name, x, y - sz - 5);
+        }
+      });
+
+      _gravityAnim = requestAnimationFrame(draw);
+    }
+
+    // Show tooltip
+    function showTooltip(idx, clientX, clientY) {
+      const h = _gravityParticles[idx].host;
       document.getElementById('tt-name').textContent = h.name;
       document.getElementById('tt-host').textContent = h.hostname.length > 24 ? h.hostname.slice(0, 22) + '..' : h.hostname;
       document.getElementById('tt-type').textContent = h.checkType.toUpperCase();
@@ -822,40 +845,50 @@
         const pts = h.sparkline.map((v, i) => v !== null ? `${(i / (h.sparkline.length - 1)) * 60},${20 - ((v - min) / range) * 17 - 1}` : null).filter(Boolean).join(' ');
         ttSpark.innerHTML = `<polyline fill="none" stroke="var(--ng-primary)" stroke-width="1.5" opacity="0.6" points="${pts}"/>`;
         ttSpark.classList.remove('hidden');
-      } else {
-        ttSpark.classList.add('hidden');
-      }
+      } else { ttSpark.classList.add('hidden'); }
 
-      const rect = wrap.getBoundingClientRect();
-      const svgRect = svg.getBoundingClientRect();
-      const vb = svg.getAttribute('viewBox').split(' ').map(Number);
-      const scaleX = svgRect.width / vb[2], scaleY = svgRect.height / vb[3];
-      const pos = nodePositions.get(hostId);
-      if (pos) {
-        let tx = pos.x * scaleX + (svgRect.left - rect.left) + 20;
-        let ty = pos.y * scaleY + (svgRect.top - rect.top) - 30;
-        if (tx + 200 > rect.width) tx = pos.x * scaleX + (svgRect.left - rect.left) - 200;
-        tooltip.style.left = tx + 'px';
-        tooltip.style.top = Math.max(0, ty) + 'px';
-      }
+      const wrapRect = wrap.getBoundingClientRect();
+      let tx = clientX - wrapRect.left + 18;
+      let ty = clientY - wrapRect.top - 20;
+      if (tx + 200 > wrapRect.width) tx = clientX - wrapRect.left - 210;
+      if (ty < 0) ty = 10;
+      tooltip.style.left = tx + 'px';
+      tooltip.style.top = ty + 'px';
       tooltip.classList.remove('hidden');
     }
 
-    svg.addEventListener('mouseover', e => {
-      const hit = e.target.closest('.node-hit');
-      if (hit) showTooltip(e, parseInt(hit.dataset.hostId));
+    // Hit testing
+    canvas.addEventListener('mousemove', e => {
+      const rect = canvas.getBoundingClientRect();
+      const mx = e.clientX - rect.left;
+      const my = e.clientY - rect.top;
+      let found = -1;
+      for (let i = 0; i < _gravityParticles.length; i++) {
+        const p = _gravityParticles[i];
+        const dx = mx - p.screenX, dy = my - p.screenY;
+        if (dx * dx + dy * dy < (p.size + 12) * (p.size + 12)) { found = i; break; }
+      }
+      hoveredIdx = found;
+      if (found >= 0) {
+        showTooltip(found, e.clientX, e.clientY);
+        canvas.style.cursor = 'pointer';
+      } else {
+        tooltip.classList.add('hidden');
+        canvas.style.cursor = 'default';
+      }
     });
-    svg.addEventListener('mouseout', e => {
-      const hit = e.target.closest('.node-hit');
-      if (hit) tooltip.classList.add('hidden');
+    canvas.addEventListener('mouseleave', () => {
+      hoveredIdx = -1;
+      tooltip.classList.add('hidden');
     });
-    svg.addEventListener('click', e => {
-      const hit = e.target.closest('.node-hit');
-      if (hit) window.location.href = '/ping/' + hit.dataset.hostId;
+    canvas.addEventListener('click', () => {
+      if (hoveredIdx >= 0) window.location.href = '/ping/' + _gravityParticles[hoveredIdx].host.id;
     });
+
+    draw();
   }
   // Run after DOM settles (handles SPA navigation + initial load)
-  setTimeout(() => initNodeMap(0), 50);
+  setTimeout(() => initGravityWell(0), 50);
 
   // ── Filter stub (kept for keyboard nav compatibility) ──
   let activeSubnetFilter = null;
