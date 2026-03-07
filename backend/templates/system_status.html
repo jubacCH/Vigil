@@ -1,0 +1,245 @@
+{% extends "base.html" %}
+{% block title %}System Status – {{ request.state.site_name }}{% endblock %}
+
+{% block content %}
+<div class="p-8 space-y-6">
+
+  <div class="flex items-center justify-between">
+    <h1 class="ng-heading text-2xl text-[--ng-text-primary]">System Status</h1>
+    <button onclick="location.reload()" class="px-3 py-1.5 rounded-lg text-xs font-mono bg-white/[0.04] text-[--ng-text-secondary] hover:bg-white/[0.08] border border-white/[0.06] transition-colors">
+      Refresh
+    </button>
+  </div>
+
+  <!-- Top row: App + System + Process -->
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+
+    <!-- Application -->
+    <div class="glass-card">
+      <h2 class="metric-label !text-[10px] mb-4">Application</h2>
+      <div class="space-y-2.5">
+        {% for label, val in [
+          ("Uptime", app_info.uptime_human),
+          ("Started", app_info.start_time),
+          ("Python", app_info.python_version),
+          ("Platform", app_info.platform),
+          ("Hostname", app_info.hostname),
+          ("PID", app_info.pid),
+        ] %}
+        <div class="flex justify-between gap-4">
+          <span class="text-[--ng-text-muted] text-xs">{{ label }}</span>
+          <span class="text-[--ng-text-secondary] text-xs font-mono text-right truncate max-w-[60%]">{{ val }}</span>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- System Resources -->
+    <div class="glass-card">
+      <h2 class="metric-label !text-[10px] mb-4">System Resources</h2>
+      <div class="space-y-3">
+        <!-- CPU -->
+        <div>
+          <div class="flex justify-between mb-1">
+            <span class="text-[--ng-text-muted] text-xs">CPU ({{ system_info.cpu_count }} cores)</span>
+            <span class="text-xs font-mono {% if system_info.cpu_pct > 80 %}text-ng-critical{% elif system_info.cpu_pct > 50 %}text-ng-warning{% else %}text-ng-success{% endif %}">{{ system_info.cpu_pct }}%</span>
+          </div>
+          <div class="metric-bar">
+            <div class="metric-bar-fill {% if system_info.cpu_pct > 80 %}!bg-ng-critical{% elif system_info.cpu_pct > 50 %}!bg-ng-warning{% endif %}" style="width:{{ system_info.cpu_pct }}%"></div>
+          </div>
+          <p class="text-[9px] text-[--ng-text-muted] font-mono mt-0.5">Load: {{ system_info.load_1m }} / {{ system_info.load_5m }} / {{ system_info.load_15m }}</p>
+        </div>
+        <!-- Memory -->
+        <div>
+          <div class="flex justify-between mb-1">
+            <span class="text-[--ng-text-muted] text-xs">Memory</span>
+            <span class="text-xs font-mono {% if system_info.mem_pct > 85 %}text-ng-critical{% elif system_info.mem_pct > 60 %}text-ng-warning{% else %}text-ng-success{% endif %}">{{ system_info.mem_used_gb }}GB / {{ system_info.mem_total_gb }}GB ({{ system_info.mem_pct }}%)</span>
+          </div>
+          <div class="metric-bar">
+            <div class="metric-bar-fill {% if system_info.mem_pct > 85 %}!bg-ng-critical{% elif system_info.mem_pct > 60 %}!bg-ng-warning{% endif %}" style="width:{{ system_info.mem_pct }}%"></div>
+          </div>
+        </div>
+        <!-- Disk -->
+        <div>
+          <div class="flex justify-between mb-1">
+            <span class="text-[--ng-text-muted] text-xs">Disk</span>
+            <span class="text-xs font-mono {% if system_info.disk_pct > 90 %}text-ng-critical{% elif system_info.disk_pct > 70 %}text-ng-warning{% else %}text-ng-success{% endif %}">{{ system_info.disk_used_gb }}GB / {{ system_info.disk_total_gb }}GB ({{ system_info.disk_pct }}%)</span>
+          </div>
+          <div class="metric-bar">
+            <div class="metric-bar-fill {% if system_info.disk_pct > 90 %}!bg-ng-critical{% elif system_info.disk_pct > 70 %}!bg-ng-warning{% endif %}" style="width:{{ system_info.disk_pct }}%"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Process -->
+    <div class="glass-card">
+      <h2 class="metric-label !text-[10px] mb-4">Vigil Process</h2>
+      <div class="space-y-2.5">
+        {% for label, val in [
+          ("RSS Memory", process_info.rss_mb ~ " MB"),
+          ("Virtual Memory", process_info.vms_mb ~ " MB"),
+          ("Threads", process_info.threads),
+          ("Open Files", process_info.open_files),
+          ("Connections", process_info.connections),
+        ] %}
+        <div class="flex justify-between gap-4">
+          <span class="text-[--ng-text-muted] text-xs">{{ label }}</span>
+          <span class="text-[--ng-text-secondary] text-xs font-mono">{{ val }}</span>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Second row: Database + Ping Stats -->
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+    <!-- Database -->
+    <div class="glass-card">
+      <h2 class="metric-label !text-[10px] mb-4">Database</h2>
+      {% if db_stats.get("error") %}
+        <p class="text-ng-critical text-xs font-mono">{{ db_stats.error }}</p>
+      {% else %}
+      <div class="space-y-2.5">
+        {% for label, val in [
+          ("Database Size", db_stats.db_size),
+          ("Ping Hosts", db_stats.host_count),
+          ("Ping Results", "{:,}".format(db_stats.result_count)),
+          ("Integration Configs", db_stats.config_count),
+          ("Snapshots", "{:,}".format(db_stats.snapshot_count)),
+          ("Syslog Messages", "{:,}".format(db_stats.syslog_count)),
+          ("Oldest Ping", db_stats.oldest_ping),
+          ("Newest Ping", db_stats.newest_ping),
+        ] %}
+        <div class="flex justify-between gap-4">
+          <span class="text-[--ng-text-muted] text-xs">{{ label }}</span>
+          <span class="text-[--ng-text-secondary] text-xs font-mono">{{ val }}</span>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Ping Stats (1h) -->
+    <div class="glass-card">
+      <h2 class="metric-label !text-[10px] mb-4">Ping Checks (last hour)</h2>
+      {% if ping_stats %}
+      <div class="grid grid-cols-2 gap-4">
+        <div class="text-center">
+          <p class="text-2xl font-mono font-bold text-[--ng-text-primary]">{{ "{:,}".format(ping_stats.checks_1h) }}</p>
+          <p class="text-[10px] text-[--ng-text-muted] uppercase tracking-wider mt-1">Checks</p>
+        </div>
+        <div class="text-center">
+          <p class="text-2xl font-mono font-bold {% if ping_stats.success_rate >= 99 %}text-ng-success{% elif ping_stats.success_rate >= 95 %}text-ng-warning{% else %}text-ng-critical{% endif %}">{{ ping_stats.success_rate }}%</p>
+          <p class="text-[10px] text-[--ng-text-muted] uppercase tracking-wider mt-1">Success Rate</p>
+        </div>
+        <div class="text-center">
+          <p class="text-2xl font-mono font-bold text-[--ng-text-primary]">{{ ping_stats.avg_latency }}ms</p>
+          <p class="text-[10px] text-[--ng-text-muted] uppercase tracking-wider mt-1">Avg Latency</p>
+        </div>
+        <div class="text-center">
+          <p class="text-2xl font-mono font-bold {% if ping_stats.max_latency > 200 %}text-ng-warning{% else %}text-[--ng-text-primary]{% endif %}">{{ ping_stats.max_latency }}ms</p>
+          <p class="text-[10px] text-[--ng-text-muted] uppercase tracking-wider mt-1">Max Latency</p>
+        </div>
+      </div>
+      {% else %}
+      <p class="text-[--ng-text-muted] text-xs">No data</p>
+      {% endif %}
+    </div>
+
+  </div>
+
+  <!-- Scheduler Jobs -->
+  <div class="glass-card">
+    <h2 class="metric-label !text-[10px] mb-4">Scheduler Jobs</h2>
+    {% if scheduler_jobs %}
+    <div class="overflow-x-auto">
+      <table class="w-full text-xs">
+        <thead>
+          <tr class="text-left text-[--ng-text-muted] text-[10px] uppercase tracking-wider">
+            <th class="pb-2 font-medium">Job</th>
+            <th class="pb-2 font-medium">Trigger</th>
+            <th class="pb-2 font-medium text-right">Next Run</th>
+          </tr>
+        </thead>
+        <tbody class="text-[--ng-text-secondary] font-mono">
+          {% for job in scheduler_jobs %}
+          <tr class="border-t border-white/[0.04]">
+            <td class="py-2 text-[--ng-text-primary]">{{ job.name }}</td>
+            <td class="py-2 text-[--ng-text-muted] truncate max-w-[300px]">{{ job.trigger }}</td>
+            <td class="py-2 text-right">
+              {% if job.next_run == "paused" %}
+              <span class="text-ng-warning">paused</span>
+              {% else %}
+              {{ job.next_run }}
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="text-[--ng-text-muted] text-xs">No scheduler jobs found</p>
+    {% endif %}
+  </div>
+
+  <!-- Integrations -->
+  <div class="glass-card">
+    <h2 class="metric-label !text-[10px] mb-4">Integration Status</h2>
+    {% if integration_summary %}
+    <div class="overflow-x-auto">
+      <table class="w-full text-xs">
+        <thead>
+          <tr class="text-left text-[--ng-text-muted] text-[10px] uppercase tracking-wider">
+            <th class="pb-2 font-medium">Type</th>
+            <th class="pb-2 font-medium">Name</th>
+            <th class="pb-2 font-medium">Status</th>
+            <th class="pb-2 font-medium text-right">Last Check</th>
+            <th class="pb-2 font-medium">Error</th>
+          </tr>
+        </thead>
+        <tbody class="text-[--ng-text-secondary] font-mono">
+          {% for int in integration_summary %}
+          <tr class="border-t border-white/[0.04]">
+            <td class="py-2 capitalize">{{ int.type }}</td>
+            <td class="py-2 text-[--ng-text-primary]">{{ int.name }}</td>
+            <td class="py-2">
+              {% if int.ok is none %}
+              <span class="px-1.5 py-0.5 rounded text-[9px] bg-white/[0.06] text-[--ng-text-muted]">no data</span>
+              {% elif int.ok %}
+              <span class="px-1.5 py-0.5 rounded text-[9px] bg-ng-success/15 text-ng-success">OK</span>
+              {% else %}
+              <span class="px-1.5 py-0.5 rounded text-[9px] bg-ng-critical/15 text-ng-critical">ERROR</span>
+              {% endif %}
+            </td>
+            <td class="py-2 text-right text-[--ng-text-muted]">{{ int.last_check }}</td>
+            <td class="py-2 text-ng-critical truncate max-w-[250px]">{{ int.error or "" }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="text-[--ng-text-muted] text-xs">No integrations configured</p>
+    {% endif %}
+  </div>
+
+  <!-- Application Log -->
+  <div class="glass-card">
+    <h2 class="metric-label !text-[10px] mb-4">Application Log (recent)</h2>
+    {% if log_lines %}
+    <div class="bg-black/30 rounded-lg p-4 max-h-[400px] overflow-y-auto font-mono text-[11px] leading-relaxed text-[--ng-text-secondary] space-y-0">
+      {% for line in log_lines %}
+      <p class="{% if 'ERROR' in line or 'error' in line %}text-ng-critical{% elif 'WARNING' in line or 'warning' in line %}text-ng-warning{% elif 'INFO' in line %}text-[--ng-text-muted]{% endif %} hover:bg-white/[0.03] px-2 py-0.5 rounded">{{ line }}</p>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="text-[--ng-text-muted] text-xs">No log output captured (logs may go to Docker stdout)</p>
+    {% endif %}
+  </div>
+
+</div>
+{% endblock %}

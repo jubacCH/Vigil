@@ -270,6 +270,15 @@
 
         <p class="px-3 pt-3 pb-1.5 text-[9px] font-mono uppercase tracking-[3px] text-[--ng-text-muted]">System</p>
 
+        <a href="/system/status"
+           class="ng-nav-item {% if active_page == 'system' %}ng-nav-active{% endif %}">
+          <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+          </svg>
+          Status
+        </a>
+
         {% if request.state.current_user and request.state.current_user.role == 'admin' %}
         <a href="/settings"
            class="ng-nav-item {% if active_page == 'settings' %}ng-nav-active{% endif %}">
@@ -524,6 +533,7 @@
       {name: 'Alerts', url: '/alerts', section: 'Pages'},
       {name: 'Syslog', url: '/syslog', section: 'Pages'},
       {name: 'Incidents', url: '/incidents', section: 'Pages'},
+      {name: 'Status', url: '/system/status', section: 'Pages'},
       {name: 'Settings', url: '/settings', section: 'Pages'},
       {name: 'Users', url: '/users', section: 'Pages'},
       {name: 'Proxmox', url: '/proxmox', section: 'Integrations'},
