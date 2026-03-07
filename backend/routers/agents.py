@@ -218,12 +218,18 @@ async def agent_detail(request: Request, agent_id: int):
         if agent.last_seen:
             online = (datetime.utcnow() - agent.last_seen).total_seconds() < 120
 
-        # Find linked PingHost for "View Host" link
+        # Find linked PingHost for "View Host" link (match by hostname, name, or source_detail)
         ping_host = None
         if agent.hostname:
             from sqlalchemy import func as sa_func
-            ph_r = await db.execute(select(PingHost).where(sa_func.lower(PingHost.hostname) == agent.hostname.lower()))
-            ping_host = ph_r.scalar_one_or_none()
+            hn = agent.hostname.lower()
+            ph_r = await db.execute(
+                select(PingHost).where(
+                    (sa_func.lower(PingHost.hostname) == hn)
+                    | (sa_func.lower(PingHost.name) == hn)
+                )
+            )
+            ping_host = ph_r.scalars().first()
 
         # Latest snapshot for basic info
         snap_r = await db.execute(
@@ -277,8 +283,13 @@ async def agent_delete(request: Request, agent_id: int):
         agent = result.scalar_one_or_none()
         if agent and agent.hostname:
             # Find agent-sourced PingHost and delete its results first
+            from sqlalchemy import func as sa_func
+            hn = agent.hostname.lower()
             ph = await db.execute(
-                select(PingHost).where(PingHost.hostname == agent.hostname, PingHost.source == "agent")
+                select(PingHost).where(
+                    ((sa_func.lower(PingHost.hostname) == hn) | (sa_func.lower(PingHost.name) == hn)),
+                    PingHost.source == "agent"
+                )
             )
             ping_host = ph.scalar_one_or_none()
             if ping_host:
