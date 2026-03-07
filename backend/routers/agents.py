@@ -55,6 +55,9 @@ async def agent_enroll(request: Request):
     if enroll_key != expected_key:
         return JSONResponse({"error": "Invalid enrollment key"}, status_code=403)
 
+    # Use the client's real IP for PingHost (hostname may not be resolvable from server)
+    client_ip = request.client.host if request.client else None
+
     async with AsyncSessionLocal() as db:
         # Check if agent with this hostname already exists → return existing token
         result = await db.execute(select(Agent).where(Agent.hostname == hostname))
@@ -71,15 +74,21 @@ async def agent_enroll(request: Request):
         agent = Agent(name=hostname, hostname=hostname, token=token, platform=plat, arch=arch)
         db.add(agent)
 
-        # Auto-create PingHost if not already present
-        ping_result = await db.execute(select(PingHost).where(PingHost.hostname == hostname))
+        # Auto-create PingHost using client IP (more reliable for ICMP)
+        ping_hostname = client_ip or hostname
+        from sqlalchemy import func as sa_func
+        ping_result = await db.execute(
+            select(PingHost).where(
+                sa_func.lower(PingHost.hostname).in_([hostname.lower(), ping_hostname.lower()])
+            )
+        )
         if not ping_result.scalar_one_or_none():
             db.add(PingHost(
                 name=hostname,
-                hostname=hostname,
+                hostname=ping_hostname,
                 check_type="icmp",
                 source="agent",
-                source_detail=f"auto-enrolled agent",
+                source_detail=f"auto-enrolled agent ({hostname})",
             ))
 
         await db.commit()
@@ -212,7 +221,8 @@ async def agent_detail(request: Request, agent_id: int):
         # Find linked PingHost for "View Host" link
         ping_host = None
         if agent.hostname:
-            ph_r = await db.execute(select(PingHost).where(PingHost.hostname == agent.hostname))
+            from sqlalchemy import func as sa_func
+            ph_r = await db.execute(select(PingHost).where(sa_func.lower(PingHost.hostname) == agent.hostname.lower()))
             ping_host = ph_r.scalar_one_or_none()
 
         # Latest snapshot for basic info

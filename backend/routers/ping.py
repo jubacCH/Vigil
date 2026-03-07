@@ -467,13 +467,16 @@ async def ping_detail(host_id: int, request: Request, db: AsyncSession = Depends
     # ── Agent metrics (if an agent reports for this host) ────────────────────
     agent_data = None
     agent_snapshots = []
-    agent_obj = (await db.execute(
-        select(Agent).where(Agent.hostname == host.hostname)
-    )).scalar_one_or_none()
-    if not agent_obj:
-        # Also try matching by host name
+    # Try matching by hostname, name, or IP
+    _host_matches = [host.hostname.lower(), host.name.lower()]
+    if dns_info.get("ip"):
+        _host_matches.append(dns_info["ip"].lower())
+    agent_obj = None
+    for _match in _host_matches:
+        if agent_obj:
+            break
         agent_obj = (await db.execute(
-            select(Agent).where(Agent.hostname == host.name)
+            select(Agent).where(func.lower(Agent.hostname) == _match)
         )).scalar_one_or_none()
     if agent_obj:
         snaps_q = await db.execute(
