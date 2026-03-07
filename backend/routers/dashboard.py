@@ -33,15 +33,16 @@ from services import snapshot as snap_svc
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
 
-# ── Default dashboard widget layout ──────────────────────────────────────────
+# ── Default dashboard widget layout (gridstack 12-col) ───────────────────────
+VALID_WIDGET_IDS = {"integrations", "syslog", "gravity", "offline", "hosts", "proxmox", "top10"}
 DEFAULT_LAYOUT = [
-    {"id": "integrations", "size": "half"},
-    {"id": "syslog",       "size": "half"},
-    {"id": "gravity",      "size": "full"},
-    {"id": "offline",      "size": "full"},
-    {"id": "hosts",        "size": "full"},
-    {"id": "proxmox",      "size": "full"},
-    {"id": "top10",        "size": "full"},
+    {"id": "integrations", "x": 0, "y": 0, "w": 6, "h": 2},
+    {"id": "syslog",       "x": 6, "y": 0, "w": 6, "h": 2},
+    {"id": "gravity",      "x": 0, "y": 2, "w": 12, "h": 4},
+    {"id": "offline",      "x": 0, "y": 6, "w": 12, "h": 2},
+    {"id": "hosts",        "x": 0, "y": 8, "w": 12, "h": 3},
+    {"id": "proxmox",      "x": 0, "y": 11, "w": 12, "h": 2},
+    {"id": "top10",        "x": 0, "y": 13, "w": 12, "h": 4},
 ]
 
 
@@ -650,16 +651,18 @@ async def save_dashboard_layout(request: Request, db: AsyncSession = Depends(get
     widgets = body.get("layout")
     if not isinstance(widgets, list):
         return JSONResponse({"ok": False, "error": "Invalid layout"}, status_code=400)
-    valid_ids = {w["id"] for w in DEFAULT_LAYOUT}
     cleaned = []
     for w in widgets:
         wid = w.get("id")
-        if wid not in valid_ids:
+        if wid not in VALID_WIDGET_IDS:
             continue
-        size = w.get("size", "full")
-        if size not in ("full", "half"):
-            size = "full"
-        cleaned.append({"id": wid, "size": size})
+        cleaned.append({
+            "id": wid,
+            "x": max(0, min(11, int(w.get("x", 0)))),
+            "y": max(0, int(w.get("y", 0))),
+            "w": max(1, min(12, int(w.get("w", 12)))),
+            "h": max(1, min(8, int(w.get("h", 2)))),
+        })
     await set_setting(db, "dashboard_layout", json.dumps(cleaned))
     await db.commit()
     return JSONResponse({"ok": True})

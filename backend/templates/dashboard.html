@@ -4,12 +4,22 @@
 {% block content %}
 {% set maint_count = host_stats | selectattr('host.maintenance') | list | length %}
 {% set offline_hosts = host_stats | selectattr('online', 'equalto', false) | rejectattr('host.maintenance') | list %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/gridstack@10/dist/gridstack.min.css"/>
 <style>
-  .dash-widget-editing { outline: 1px dashed rgba(99,102,241,0.25); outline-offset: 2px; border-radius: 8px; transition: outline-color 0.2s; }
-  .dash-widget-editing:hover { outline-color: rgba(99,102,241,0.5); }
-  .dash-drag-over { outline-color: rgba(99,102,241,0.8) !important; outline-style: solid !important; background: rgba(99,102,241,0.04); }
-  .dash-editing .dash-widget { cursor: grab; }
-  .dash-editing .dash-widget:active { cursor: grabbing; }
+  .grid-stack { min-height: 100px; }
+  .grid-stack-item-content { overflow: hidden; border-radius: 8px; }
+  /* Edit mode styles */
+  .gs-editing .grid-stack-item-content { outline: 1px dashed rgba(99,102,241,0.3); outline-offset: -1px; }
+  .gs-editing .grid-stack-item-content:hover { outline-color: rgba(99,102,241,0.6); }
+  .gs-editing .grid-stack-placeholder > .placeholder-content { background: rgba(99,102,241,0.08) !important; border: 2px dashed rgba(99,102,241,0.4) !important; border-radius: 8px; }
+  .gs-editing .widget-remove-btn { display: flex !important; }
+  /* Widget library */
+  .widget-library { transition: transform 0.3s ease, opacity 0.3s ease; }
+  .widget-library.hidden { transform: translateX(100%); opacity: 0; pointer-events: none; }
+  .widget-lib-item { cursor: grab; }
+  .widget-lib-item:active { cursor: grabbing; }
+  /* Hide remove btn by default */
+  .widget-remove-btn { display: none !important; }
 </style>
 
 <div class="p-5">
@@ -188,443 +198,396 @@
   </div>
   {% endif %}
 
-  <!-- ── CONFIGURABLE WIDGET GRID ──────────────────────────────────────── -->
-  <div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="widget-grid">
+  <!-- ── GRIDSTACK WIDGET GRID ──────────────────────────────────────────── -->
+  {% macro widget_remove_btn() %}
+  <button class="widget-remove-btn absolute top-1 right-1 z-10 w-5 h-5 rounded-full bg-ng-critical/20 text-ng-critical hover:bg-ng-critical/40 items-center justify-center transition-colors" onclick="window._dashRemoveWidget(this)">
+    <svg class="w-3 h-3 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+  </button>
+  {% endmacro %}
+
+  {# Build a lookup for layout positions #}
+  {% set layout_map = {} %}
+  {% for w in layout %}{% if layout_map.update({w.id: w}) %}{% endif %}{% endfor %}
+
+  <div class="grid-stack" id="widget-grid">
   {% for w in layout %}
 
     {# ── INTEGRATIONS ─────────────────────────────────────────────────── #}
-    {% if w.id == 'integrations' and integration_health %}
-    <div class="dash-widget {% if w.size == 'full' %}md:col-span-2{% endif %}" data-widget="integrations" data-size="{{ w.size }}">
-      <div class="flex items-center gap-2 mb-3 cursor-pointer section-header" data-section="integrations">
-        <span class="drag-handle hidden cursor-grab text-[--ng-text-muted] hover:text-[--ng-text-secondary] mr-1">
-          <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><circle cx="9" cy="5" r="1.5"/><circle cx="15" cy="5" r="1.5"/><circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/><circle cx="9" cy="19" r="1.5"/><circle cx="15" cy="19" r="1.5"/></svg>
-        </span>
-        <h2 class="metric-label !text-[10px]">Integrations</h2>
-        {% set int_errors = integration_health | selectattr('ok', 'equalto', false) | list | length %}
-        {% if int_errors > 0 %}
-        <span class="px-1.5 py-0.5 rounded-full text-[10px] font-mono bg-ng-critical/15 text-ng-critical">{{ int_errors }} error{{ 's' if int_errors != 1 }}</span>
-        {% endif %}
-        <svg class="w-3.5 h-3.5 text-[--ng-text-muted] section-chevron transition-transform ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-      </div>
-      <div class="flex flex-wrap gap-2 section-body">
-        {% for i in integration_health %}
-        <a href="{{ i.url }}"
-           class="glass-card flex items-center gap-2 !px-3 !py-2 !rounded-lg
-             {% if i.ok is none %}
-             {% elif i.ok %}!border-ng-success/15 !bg-ng-success/[0.03]
-             {% else %}!border-ng-critical/20 !bg-ng-critical/[0.04]{% endif %}">
-          <span class="w-2 h-2 rounded-full shrink-0
-            {% if i.ok is none %}bg-[--ng-text-muted]
-            {% elif i.ok %}bg-ng-success glow-success
-            {% else %}bg-ng-critical node-critical{% endif %}"></span>
-          <div class="min-w-0">
-            <p class="text-[--ng-text-primary] text-xs font-medium leading-none">{{ i.name }}</p>
-            <p class="text-[--ng-text-muted] text-[10px] font-mono mt-0.5">{{ i.label }}</p>
-          </div>
-          {% if i.cached_at %}
-          <span class="text-[--ng-text-muted] text-[10px] font-mono ml-1 shrink-0">{{ i.cached_at.strftime("%H:%M") }}</span>
+    {% if w.id == 'integrations' %}
+    <div class="grid-stack-item" gs-id="integrations" gs-x="{{ w.x }}" gs-y="{{ w.y }}" gs-w="{{ w.w }}" gs-h="{{ w.h }}" gs-min-h="1" gs-min-w="3">
+      <div class="grid-stack-item-content p-4 relative">
+        {{ widget_remove_btn() }}
+        {% if integration_health %}
+        <div class="flex items-center gap-2 mb-3 cursor-pointer section-header" data-section="integrations">
+          <h2 class="metric-label !text-[10px]">Integrations</h2>
+          {% set int_errors = integration_health | selectattr('ok', 'equalto', false) | list | length %}
+          {% if int_errors > 0 %}
+          <span class="px-1.5 py-0.5 rounded-full text-[10px] font-mono bg-ng-critical/15 text-ng-critical">{{ int_errors }} error{{ 's' if int_errors != 1 }}</span>
           {% endif %}
-        </a>
-        {% endfor %}
+          <svg class="w-3.5 h-3.5 text-[--ng-text-muted] section-chevron transition-transform ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+        </div>
+        <div class="flex flex-wrap gap-2 section-body">
+          {% for i in integration_health %}
+          <a href="{{ i.url }}"
+             class="glass-card flex items-center gap-2 !px-3 !py-2 !rounded-lg
+               {% if i.ok is none %}
+               {% elif i.ok %}!border-ng-success/15 !bg-ng-success/[0.03]
+               {% else %}!border-ng-critical/20 !bg-ng-critical/[0.04]{% endif %}">
+            <span class="w-2 h-2 rounded-full shrink-0
+              {% if i.ok is none %}bg-[--ng-text-muted]
+              {% elif i.ok %}bg-ng-success glow-success
+              {% else %}bg-ng-critical node-critical{% endif %}"></span>
+            <div class="min-w-0">
+              <p class="text-[--ng-text-primary] text-xs font-medium leading-none">{{ i.name }}</p>
+              <p class="text-[--ng-text-muted] text-[10px] font-mono mt-0.5">{{ i.label }}</p>
+            </div>
+            {% if i.cached_at %}
+            <span class="text-[--ng-text-muted] text-[10px] font-mono ml-1 shrink-0">{{ i.cached_at.strftime("%H:%M") }}</span>
+            {% endif %}
+          </a>
+          {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-[--ng-text-muted] text-xs">No integrations configured</p>
+        {% endif %}
       </div>
     </div>
     {% endif %}
 
     {# ── SYSLOG ───────────────────────────────────────────────────────── #}
-    {% if w.id == 'syslog' and syslog_stats and syslog_stats.total > 0 %}
-    <div class="dash-widget {% if w.size == 'full' %}md:col-span-2{% endif %}" data-widget="syslog" data-size="{{ w.size }}">
-      <div class="flex items-center gap-2 mb-3 cursor-pointer section-header" data-section="syslog">
-        <span class="drag-handle hidden cursor-grab text-[--ng-text-muted] hover:text-[--ng-text-secondary] mr-1">
-          <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><circle cx="9" cy="5" r="1.5"/><circle cx="15" cy="5" r="1.5"/><circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/><circle cx="9" cy="19" r="1.5"/><circle cx="15" cy="19" r="1.5"/></svg>
-        </span>
-        <h2 class="metric-label !text-[10px]">Syslog (24h)</h2>
-        {% if syslog_stats.error_rate_1h > 0 %}
-        <span class="px-1.5 py-0.5 rounded-full text-[10px] font-mono bg-ng-critical/15 text-ng-critical">{{ syslog_stats.error_rate_1h }} errors/1h</span>
-        {% endif %}
-        <a href="/syslog" class="text-[10px] text-[--ng-text-muted] hover:text-ng-primary transition-colors font-mono ml-auto mr-2">View all</a>
-        <svg class="w-3.5 h-3.5 text-[--ng-text-muted] section-chevron transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-      </div>
-      <div class="section-body">
-        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          <div class="glass-card-static !p-4">
-            <p class="text-[--ng-text-muted] text-[10px] uppercase tracking-wider mb-1">Messages</p>
-            <p class="text-[--ng-text-primary] text-xl font-mono font-medium tabular-nums">{{ "{:,}".format(syslog_stats.total) }}</p>
-          </div>
-          <div class="glass-card-static !p-4">
-            <p class="text-[--ng-text-muted] text-[10px] uppercase tracking-wider mb-2">By Severity</p>
-            <div class="flex flex-wrap gap-1.5">
-              {% for sev, info in syslog_stats.by_severity.items() | sort %}
-              <span class="px-1.5 py-0.5 rounded text-[10px] font-mono tabular-nums
-                {% if sev <= 2 %}bg-red-500/15 text-red-400
-                {% elif sev == 3 %}bg-orange-500/15 text-orange-400
-                {% elif sev == 4 %}bg-yellow-500/15 text-yellow-400
-                {% elif sev <= 5 %}bg-blue-500/15 text-blue-400
-                {% elif sev == 6 %}bg-emerald-500/15 text-emerald-400
-                {% else %}bg-slate-500/15 text-slate-400{% endif %}">
-                {{ info.label[:4] }} {{ info.count }}
-              </span>
-              {% endfor %}
+    {% if w.id == 'syslog' %}
+    <div class="grid-stack-item" gs-id="syslog" gs-x="{{ w.x }}" gs-y="{{ w.y }}" gs-w="{{ w.w }}" gs-h="{{ w.h }}" gs-min-h="1" gs-min-w="3">
+      <div class="grid-stack-item-content p-4 relative">
+        {{ widget_remove_btn() }}
+        {% if syslog_stats and syslog_stats.total > 0 %}
+        <div class="flex items-center gap-2 mb-3 cursor-pointer section-header" data-section="syslog">
+          <h2 class="metric-label !text-[10px]">Syslog (24h)</h2>
+          {% if syslog_stats.error_rate_1h > 0 %}
+          <span class="px-1.5 py-0.5 rounded-full text-[10px] font-mono bg-ng-critical/15 text-ng-critical">{{ syslog_stats.error_rate_1h }} errors/1h</span>
+          {% endif %}
+          <a href="/syslog" class="text-[10px] text-[--ng-text-muted] hover:text-ng-primary transition-colors font-mono ml-auto mr-2">View all</a>
+          <svg class="w-3.5 h-3.5 text-[--ng-text-muted] section-chevron transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+        </div>
+        <div class="section-body">
+          <div class="grid grid-cols-2 gap-3">
+            <div class="glass-card-static !p-3">
+              <p class="text-[--ng-text-muted] text-[10px] uppercase tracking-wider mb-1">Messages</p>
+              <p class="text-[--ng-text-primary] text-xl font-mono font-medium tabular-nums">{{ "{:,}".format(syslog_stats.total) }}</p>
             </div>
-          </div>
-          <div class="glass-card-static !p-4 {% if syslog_stats.error_rate_1h > 50 %}!border-ng-critical/20 !bg-ng-critical/[0.04]{% endif %}">
-            <p class="text-[--ng-text-muted] text-[10px] uppercase tracking-wider mb-1">Errors (1h)</p>
-            <p class="text-xl font-mono font-medium tabular-nums {% if syslog_stats.error_rate_1h > 50 %}text-ng-critical{% elif syslog_stats.error_rate_1h > 10 %}text-ng-warning{% else %}text-ng-success{% endif %}">
-              {{ syslog_stats.error_rate_1h }}
-            </p>
-          </div>
-          <div class="glass-card-static !p-4">
-            <p class="text-[--ng-text-muted] text-[10px] uppercase tracking-wider mb-2">Top Sources</p>
-            <div class="space-y-1">
-              {% for src in syslog_stats.top_sources[:3] %}
-              <div class="flex items-center justify-between text-[10px] font-mono">
-                <a href="/syslog?source_ip={{ src.ip }}" class="text-[--ng-text-secondary] hover:text-ng-primary transition-colors truncate">{{ src.ip }}</a>
-                <span class="text-[--ng-text-muted] tabular-nums ml-2 shrink-0">{{ "{:,}".format(src.count) }}</span>
+            <div class="glass-card-static !p-3 {% if syslog_stats.error_rate_1h > 50 %}!border-ng-critical/20 !bg-ng-critical/[0.04]{% endif %}">
+              <p class="text-[--ng-text-muted] text-[10px] uppercase tracking-wider mb-1">Errors (1h)</p>
+              <p class="text-xl font-mono font-medium tabular-nums {% if syslog_stats.error_rate_1h > 50 %}text-ng-critical{% elif syslog_stats.error_rate_1h > 10 %}text-ng-warning{% else %}text-ng-success{% endif %}">{{ syslog_stats.error_rate_1h }}</p>
+            </div>
+            <div class="glass-card-static !p-3">
+              <p class="text-[--ng-text-muted] text-[10px] uppercase tracking-wider mb-2">By Severity</p>
+              <div class="flex flex-wrap gap-1.5">
+                {% for sev, info in syslog_stats.by_severity.items() | sort %}
+                <span class="px-1.5 py-0.5 rounded text-[10px] font-mono tabular-nums
+                  {% if sev <= 2 %}bg-red-500/15 text-red-400{% elif sev == 3 %}bg-orange-500/15 text-orange-400{% elif sev == 4 %}bg-yellow-500/15 text-yellow-400{% elif sev <= 5 %}bg-blue-500/15 text-blue-400{% elif sev == 6 %}bg-emerald-500/15 text-emerald-400{% else %}bg-slate-500/15 text-slate-400{% endif %}">{{ info.label[:4] }} {{ info.count }}</span>
+                {% endfor %}
               </div>
-              {% endfor %}
+            </div>
+            <div class="glass-card-static !p-3">
+              <p class="text-[--ng-text-muted] text-[10px] uppercase tracking-wider mb-2">Top Sources</p>
+              <div class="space-y-1">
+                {% for src in syslog_stats.top_sources[:3] %}
+                <div class="flex items-center justify-between text-[10px] font-mono">
+                  <a href="/syslog?source_ip={{ src.ip }}" class="text-[--ng-text-secondary] hover:text-ng-primary transition-colors truncate">{{ src.ip }}</a>
+                  <span class="text-[--ng-text-muted] tabular-nums ml-2 shrink-0">{{ "{:,}".format(src.count) }}</span>
+                </div>
+                {% endfor %}
+              </div>
             </div>
           </div>
         </div>
+        {% else %}
+        <p class="text-[--ng-text-muted] text-xs">No syslog data</p>
+        {% endif %}
       </div>
     </div>
     {% endif %}
 
     {# ── GRAVITY WELL ─────────────────────────────────────────────────── #}
-    {% if w.id == 'gravity' and host_stats %}
-    <div class="dash-widget {% if w.size == 'full' %}md:col-span-2{% endif %} glass-card-static !p-0 overflow-hidden" data-widget="gravity" data-size="{{ w.size }}">
-      <div class="px-5 py-3 border-b border-white/[0.06] flex items-center justify-between cursor-pointer section-header" data-section="nodemap">
-        <div class="flex items-center gap-2">
-          <span class="drag-handle hidden cursor-grab text-[--ng-text-muted] hover:text-[--ng-text-secondary] mr-1">
-            <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><circle cx="9" cy="5" r="1.5"/><circle cx="15" cy="5" r="1.5"/><circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/><circle cx="9" cy="19" r="1.5"/><circle cx="15" cy="19" r="1.5"/></svg>
-          </span>
+    {% if w.id == 'gravity' %}
+    <div class="grid-stack-item" gs-id="gravity" gs-x="{{ w.x }}" gs-y="{{ w.y }}" gs-w="{{ w.w }}" gs-h="{{ w.h }}" gs-min-h="3" gs-min-w="4">
+      <div class="grid-stack-item-content relative overflow-hidden glass-card-static !p-0">
+        {{ widget_remove_btn() }}
+        {% if host_stats %}
+        <div class="px-5 py-3 border-b border-white/[0.06] flex items-center justify-between cursor-pointer section-header" data-section="nodemap">
           <h2 class="metric-label !text-[10px]">Gravity Well</h2>
-        </div>
-        <div class="flex items-center gap-3">
-          <span class="text-[--ng-text-muted] text-[10px] font-mono">{{ host_stats|length }} nodes</span>
-          <svg class="w-3.5 h-3.5 text-[--ng-text-muted] section-chevron transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-        </div>
-      </div>
-      <div class="section-body" id="nodemap-body">
-        <div class="hidden md:block relative overflow-hidden" id="node-map-wrap"
-             style="background: radial-gradient(circle at 50% 50%, rgba(99,102,241,0.06) 0%, rgba(6,10,23,0.5) 70%, #0a0c1a 100%);">
-          <canvas id="gravity-canvas" style="width:100%;display:block;"></canvas>
-          <div id="node-tooltip" class="hidden absolute pointer-events-none z-20 !rounded-lg min-w-[190px] text-xs"
-               style="backdrop-filter:blur(24px);background:rgba(10,12,28,0.9);border:1px solid rgba(255,255,255,0.08);padding:12px">
-            <div class="flex items-center gap-2 mb-2">
-              <span id="tt-dot" class="w-2 h-2 rounded-full shrink-0"></span>
-              <span id="tt-name" class="text-[--ng-text-primary] font-semibold text-sm truncate"></span>
-            </div>
-            <div class="space-y-1 text-[--ng-text-secondary] font-mono text-[10px]">
-              <div class="flex justify-between gap-4"><span class="text-[--ng-text-muted]">Host</span><span id="tt-host"></span></div>
-              <div class="flex justify-between gap-4"><span class="text-[--ng-text-muted]">Type</span><span id="tt-type"></span></div>
-              <div class="flex justify-between gap-4"><span class="text-[--ng-text-muted]">Latency</span><span id="tt-latency"></span></div>
-              <div class="flex justify-between gap-4"><span class="text-[--ng-text-muted]">Uptime</span><span id="tt-uptime"></span></div>
-            </div>
-            <svg id="tt-sparkline" class="w-full h-6 mt-2" viewBox="0 0 60 20" preserveAspectRatio="none"></svg>
+          <div class="flex items-center gap-3">
+            <span class="text-[--ng-text-muted] text-[10px] font-mono">{{ host_stats|length }} nodes</span>
+            <svg class="w-3.5 h-3.5 text-[--ng-text-muted] section-chevron transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
           </div>
         </div>
-        <div class="md:hidden p-3 grid grid-cols-3 gap-1.5 max-h-64 overflow-y-auto">
-          {% for s in host_stats | sort(attribute='host.name') %}
-          <a href="/ping/{{ s.host.id }}" class="flex items-center gap-1.5 px-2 py-1.5 rounded-lg hover:bg-white/[0.04] transition-colors">
-            <span class="w-1.5 h-1.5 rounded-full shrink-0 {% if s.host.maintenance %}bg-ng-warning{% elif s.online %}bg-ng-success{% elif s.online is false %}bg-ng-critical{% else %}bg-[--ng-text-muted]{% endif %}"></span>
-            <span class="text-[--ng-text-primary] text-[10px] font-mono truncate">{{ s.host.name }}</span>
-          </a>
-          {% endfor %}
+        <div class="section-body" id="nodemap-body">
+          <div class="hidden md:block relative overflow-hidden" id="node-map-wrap"
+               style="background: radial-gradient(circle at 50% 50%, rgba(99,102,241,0.06) 0%, rgba(6,10,23,0.5) 70%, #0a0c1a 100%);">
+            <canvas id="gravity-canvas" style="width:100%;display:block;"></canvas>
+            <div id="node-tooltip" class="hidden absolute pointer-events-none z-20 !rounded-lg min-w-[190px] text-xs"
+                 style="backdrop-filter:blur(24px);background:rgba(10,12,28,0.9);border:1px solid rgba(255,255,255,0.08);padding:12px">
+              <div class="flex items-center gap-2 mb-2">
+                <span id="tt-dot" class="w-2 h-2 rounded-full shrink-0"></span>
+                <span id="tt-name" class="text-[--ng-text-primary] font-semibold text-sm truncate"></span>
+              </div>
+              <div class="space-y-1 text-[--ng-text-secondary] font-mono text-[10px]">
+                <div class="flex justify-between gap-4"><span class="text-[--ng-text-muted]">Host</span><span id="tt-host"></span></div>
+                <div class="flex justify-between gap-4"><span class="text-[--ng-text-muted]">Type</span><span id="tt-type"></span></div>
+                <div class="flex justify-between gap-4"><span class="text-[--ng-text-muted]">Latency</span><span id="tt-latency"></span></div>
+                <div class="flex justify-between gap-4"><span class="text-[--ng-text-muted]">Uptime</span><span id="tt-uptime"></span></div>
+              </div>
+              <svg id="tt-sparkline" class="w-full h-6 mt-2" viewBox="0 0 60 20" preserveAspectRatio="none"></svg>
+            </div>
+          </div>
+          <div class="md:hidden p-3 grid grid-cols-3 gap-1.5 max-h-64 overflow-y-auto">
+            {% for s in host_stats | sort(attribute='host.name') %}
+            <a href="/ping/{{ s.host.id }}" class="flex items-center gap-1.5 px-2 py-1.5 rounded-lg hover:bg-white/[0.04] transition-colors">
+              <span class="w-1.5 h-1.5 rounded-full shrink-0 {% if s.host.maintenance %}bg-ng-warning{% elif s.online %}bg-ng-success{% elif s.online is false %}bg-ng-critical{% else %}bg-[--ng-text-muted]{% endif %}"></span>
+              <span class="text-[--ng-text-primary] text-[10px] font-mono truncate">{{ s.host.name }}</span>
+            </a>
+            {% endfor %}
+          </div>
         </div>
+        {% else %}
+        <div class="p-4"><p class="text-[--ng-text-muted] text-xs">No hosts</p></div>
+        {% endif %}
       </div>
     </div>
     {% endif %}
 
     {# ── OFFLINE HOSTS ────────────────────────────────────────────────── #}
-    {% if w.id == 'offline' and offline_hosts %}
-    <div class="dash-widget {% if w.size == 'full' %}md:col-span-2{% endif %}" data-widget="offline" data-size="{{ w.size }}">
-      <div class="flex items-center gap-2 mb-3">
-        <span class="drag-handle hidden cursor-grab text-[--ng-text-muted] hover:text-[--ng-text-secondary] mr-1">
-          <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><circle cx="9" cy="5" r="1.5"/><circle cx="15" cy="5" r="1.5"/><circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/><circle cx="9" cy="19" r="1.5"/><circle cx="15" cy="19" r="1.5"/></svg>
-        </span>
-        <span class="w-2 h-2 rounded-full bg-ng-critical node-critical"></span>
-        <h2 class="metric-label !text-[10px] !text-ng-critical">Offline ({{ offline_hosts|length }})</h2>
-      </div>
-      <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
-        {% for s in offline_hosts %}
-        <a href="/ping/{{ s.host.id }}"
-           class="glass-card !bg-ng-critical/[0.06] !border-ng-critical/25 hover:!border-ng-critical/50"
-           data-host-id="{{ s.host.id }}">
-          <div class="flex items-start justify-between mb-2">
-            <p class="text-[--ng-text-primary] font-semibold text-sm leading-tight truncate pr-1">{{ s.host.name }}</p>
-            <span class="w-2.5 h-2.5 rounded-full bg-ng-critical shrink-0 mt-0.5 node-critical"></span>
-          </div>
-          <p class="text-[--ng-text-secondary] text-xs font-mono truncate">{{ s.host.hostname }}</p>
-          <div class="flex items-center justify-between mt-2">
-            <span class="text-ng-critical text-xs font-display tracking-wider uppercase">Offline</span>
-            {% if s.last_check %}
-            <span class="text-[--ng-text-muted] text-[10px] font-mono tabular-nums">{{ s.last_check.strftime("%H:%M") }}</span>
-            {% endif %}
-          </div>
-        </a>
-        {% endfor %}
+    {% if w.id == 'offline' %}
+    <div class="grid-stack-item" gs-id="offline" gs-x="{{ w.x }}" gs-y="{{ w.y }}" gs-w="{{ w.w }}" gs-h="{{ w.h }}" gs-min-h="1" gs-min-w="4">
+      <div class="grid-stack-item-content p-4 relative">
+        {{ widget_remove_btn() }}
+        {% if offline_hosts %}
+        <div class="flex items-center gap-2 mb-3">
+          <span class="w-2 h-2 rounded-full bg-ng-critical node-critical"></span>
+          <h2 class="metric-label !text-[10px] !text-ng-critical">Offline ({{ offline_hosts|length }})</h2>
+        </div>
+        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
+          {% for s in offline_hosts %}
+          <a href="/ping/{{ s.host.id }}"
+             class="glass-card !bg-ng-critical/[0.06] !border-ng-critical/25 hover:!border-ng-critical/50"
+             data-host-id="{{ s.host.id }}">
+            <div class="flex items-start justify-between mb-2">
+              <p class="text-[--ng-text-primary] font-semibold text-sm leading-tight truncate pr-1">{{ s.host.name }}</p>
+              <span class="w-2.5 h-2.5 rounded-full bg-ng-critical shrink-0 mt-0.5 node-critical"></span>
+            </div>
+            <p class="text-[--ng-text-secondary] text-xs font-mono truncate">{{ s.host.hostname }}</p>
+            <div class="flex items-center justify-between mt-2">
+              <span class="text-ng-critical text-xs font-display tracking-wider uppercase">Offline</span>
+              {% if s.last_check %}
+              <span class="text-[--ng-text-muted] text-[10px] font-mono tabular-nums">{{ s.last_check.strftime("%H:%M") }}</span>
+              {% endif %}
+            </div>
+          </a>
+          {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-[--ng-text-muted] text-xs">All hosts online</p>
+        {% endif %}
       </div>
     </div>
     {% endif %}
 
     {# ── ALL HOSTS ────────────────────────────────────────────────────── #}
-    {% if w.id == 'hosts' and host_stats %}
-    <div class="dash-widget {% if w.size == 'full' %}md:col-span-2{% endif %}" data-widget="hosts" data-size="{{ w.size }}">
-      <div class="flex items-center gap-2 mb-3">
-        <span class="drag-handle hidden cursor-grab text-[--ng-text-muted] hover:text-[--ng-text-secondary] mr-1">
-          <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><circle cx="9" cy="5" r="1.5"/><circle cx="15" cy="5" r="1.5"/><circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/><circle cx="9" cy="19" r="1.5"/><circle cx="15" cy="19" r="1.5"/></svg>
-        </span>
-        <h2 class="metric-label !text-[10px]">{% if offline_hosts %}All Hosts{% else %}Hosts{% endif %} ({{ host_stats|length }})</h2>
-      </div>
-      <div class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-2" id="host-grid">
-        {% for s in host_stats | sort(attribute='uptime_pct') %}
-        <a href="/ping/{{ s.host.id }}"
-           class="glass-card !px-3 !py-2.5 !rounded-lg
-             {% if s.host.maintenance %}!border-ng-warning/15 !bg-ng-warning/[0.04]
-             {% elif s.online %}!border-ng-success/12 !bg-ng-success/[0.03]
-             {% elif s.online is false %}!border-ng-critical/25 !bg-ng-critical/[0.06]
-             {% endif %}"
-           data-host-id="{{ s.host.id }}">
-          <div class="flex items-center justify-between gap-1 mb-1">
-            <p class="text-[--ng-text-primary] font-semibold text-xs leading-tight truncate">{{ s.host.name }}</p>
-            <span class="w-1.5 h-1.5 rounded-full shrink-0
-              {% if s.host.maintenance %}bg-ng-warning
-              {% elif s.online %}bg-ng-success
-              {% elif s.online is false %}bg-ng-critical
-              {% else %}bg-[--ng-text-muted]{% endif %}
-              {% if s.online and not s.host.maintenance %}glow-success{% endif %}
-              status-dot-{{ s.host.id }}"></span>
-          </div>
-          <div class="flex items-center justify-between">
-            <span class="text-[10px] font-mono
-              {% if s.host.maintenance %}text-ng-warning
-              {% elif s.online %}text-ng-success
-              {% elif s.online is false %}text-ng-critical
-              {% else %}text-[--ng-text-muted]{% endif %}">
-              {% if s.host.maintenance %}Maint.{% elif s.online %}Online{% elif s.online is false %}Offline{% else %}—{% endif %}
-            </span>
-            <span class="latency-val-{{ s.host.id }} text-[10px] font-mono tabular-nums
-              {% if s.latency is not none %}text-[--ng-text-secondary]{% else %}text-[--ng-text-muted]{% endif %}">
-              {% if s.latency is not none %}{{ s.latency }}ms{% else %}—{% endif %}
-            </span>
-          </div>
-          <div class="sparkline-box h-3 mt-1" data-host-spark="{{ s.host.id }}"></div>
-        </a>
-        {% endfor %}
+    {% if w.id == 'hosts' %}
+    <div class="grid-stack-item" gs-id="hosts" gs-x="{{ w.x }}" gs-y="{{ w.y }}" gs-w="{{ w.w }}" gs-h="{{ w.h }}" gs-min-h="2" gs-min-w="4">
+      <div class="grid-stack-item-content p-4 relative">
+        {{ widget_remove_btn() }}
+        {% if host_stats %}
+        <div class="flex items-center gap-2 mb-3">
+          <h2 class="metric-label !text-[10px]">{% if offline_hosts %}All Hosts{% else %}Hosts{% endif %} ({{ host_stats|length }})</h2>
+        </div>
+        <div class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-2" id="host-grid">
+          {% for s in host_stats | sort(attribute='uptime_pct') %}
+          <a href="/ping/{{ s.host.id }}"
+             class="glass-card !px-3 !py-2.5 !rounded-lg
+               {% if s.host.maintenance %}!border-ng-warning/15 !bg-ng-warning/[0.04]
+               {% elif s.online %}!border-ng-success/12 !bg-ng-success/[0.03]
+               {% elif s.online is false %}!border-ng-critical/25 !bg-ng-critical/[0.06]
+               {% endif %}"
+             data-host-id="{{ s.host.id }}">
+            <div class="flex items-center justify-between gap-1 mb-1">
+              <p class="text-[--ng-text-primary] font-semibold text-xs leading-tight truncate">{{ s.host.name }}</p>
+              <span class="w-1.5 h-1.5 rounded-full shrink-0
+                {% if s.host.maintenance %}bg-ng-warning
+                {% elif s.online %}bg-ng-success
+                {% elif s.online is false %}bg-ng-critical
+                {% else %}bg-[--ng-text-muted]{% endif %}
+                {% if s.online and not s.host.maintenance %}glow-success{% endif %}
+                status-dot-{{ s.host.id }}"></span>
+            </div>
+            <div class="flex items-center justify-between">
+              <span class="text-[10px] font-mono
+                {% if s.host.maintenance %}text-ng-warning
+                {% elif s.online %}text-ng-success
+                {% elif s.online is false %}text-ng-critical
+                {% else %}text-[--ng-text-muted]{% endif %}">
+                {% if s.host.maintenance %}Maint.{% elif s.online %}Online{% elif s.online is false %}Offline{% else %}—{% endif %}
+              </span>
+              <span class="latency-val-{{ s.host.id }} text-[10px] font-mono tabular-nums
+                {% if s.latency is not none %}text-[--ng-text-secondary]{% else %}text-[--ng-text-muted]{% endif %}">
+                {% if s.latency is not none %}{{ s.latency }}ms{% else %}—{% endif %}
+              </span>
+            </div>
+            <div class="sparkline-box h-3 mt-1" data-host-spark="{{ s.host.id }}"></div>
+          </a>
+          {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-[--ng-text-muted] text-xs">No hosts configured</p>
+        {% endif %}
       </div>
     </div>
     {% endif %}
 
     {# ── PROXMOX ──────────────────────────────────────────────────────── #}
-    {% if w.id == 'proxmox' and proxmox_clusters %}
-    <div class="dash-widget {% if w.size == 'full' %}md:col-span-2{% endif %}" data-widget="proxmox" data-size="{{ w.size }}">
-      <div class="flex items-center gap-2 mb-3">
-        <span class="drag-handle hidden cursor-grab text-[--ng-text-muted] hover:text-[--ng-text-secondary] mr-1">
-          <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><circle cx="9" cy="5" r="1.5"/><circle cx="15" cy="5" r="1.5"/><circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/><circle cx="9" cy="19" r="1.5"/><circle cx="15" cy="19" r="1.5"/></svg>
-        </span>
-        <h2 class="metric-label !text-[10px]">Proxmox</h2>
-      </div>
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-        {% for cluster in proxmox_clusters %}
-        <a href="/proxmox/{{ cluster.id }}"
-           class="glass-card block"
-           id="px-card-{{ cluster.id }}">
-          <div class="flex items-center justify-between mb-3">
-            <div class="min-w-0">
-              <p class="text-[--ng-text-primary] font-semibold text-sm truncate">{{ cluster.name }}</p>
-              <p class="text-[--ng-text-muted] text-xs font-mono truncate mt-0.5">{{ cluster.host }}</p>
+    {% if w.id == 'proxmox' %}
+    <div class="grid-stack-item" gs-id="proxmox" gs-x="{{ w.x }}" gs-y="{{ w.y }}" gs-w="{{ w.w }}" gs-h="{{ w.h }}" gs-min-h="1" gs-min-w="4">
+      <div class="grid-stack-item-content p-4 relative">
+        {{ widget_remove_btn() }}
+        {% if proxmox_clusters %}
+        <h2 class="metric-label !text-[10px] mb-3">Proxmox</h2>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+          {% for cluster in proxmox_clusters %}
+          <a href="/proxmox/{{ cluster.id }}" class="glass-card block" id="px-card-{{ cluster.id }}">
+            <div class="flex items-center justify-between mb-3">
+              <div class="min-w-0">
+                <p class="text-[--ng-text-primary] font-semibold text-sm truncate">{{ cluster.name }}</p>
+                <p class="text-[--ng-text-muted] text-xs font-mono truncate mt-0.5">{{ cluster.host }}</p>
+              </div>
+              <div class="w-7 h-7 rounded-lg bg-ng-warning/10 flex items-center justify-center shrink-0 ml-2">
+                <svg class="w-3.5 h-3.5 text-ng-warning" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M12 5l7 7-7 7"/>
+                </svg>
+              </div>
             </div>
-            <div class="w-7 h-7 rounded-lg bg-ng-warning/10 flex items-center justify-center shrink-0 ml-2">
-              <svg class="w-3.5 h-3.5 text-ng-warning" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M12 5l7 7-7 7"/>
-              </svg>
+            <div class="border-t border-white/[0.06] pt-3">
+              <div class="px-status text-[--ng-text-muted] text-xs font-mono">Loading...</div>
             </div>
-          </div>
-          <div class="border-t border-white/[0.06] pt-3">
-            <div class="px-status text-[--ng-text-muted] text-xs font-mono">Loading...</div>
-          </div>
-        </a>
-        {% endfor %}
+          </a>
+          {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-[--ng-text-muted] text-xs">No Proxmox clusters</p>
+        {% endif %}
       </div>
     </div>
     {% endif %}
 
     {# ── TOP 10 ───────────────────────────────────────────────────────── #}
-    {% if w.id == 'top10' and (top_latency or top_downtime or top_cpu or top_ram or top_disk) %}
-    <div class="dash-widget {% if w.size == 'full' %}md:col-span-2{% endif %}" data-widget="top10" data-size="{{ w.size }}">
-      <div class="flex items-center gap-2 mb-3 cursor-pointer section-header" data-section="top10">
-        <span class="drag-handle hidden cursor-grab text-[--ng-text-muted] hover:text-[--ng-text-secondary] mr-1">
-          <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><circle cx="9" cy="5" r="1.5"/><circle cx="15" cy="5" r="1.5"/><circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/><circle cx="9" cy="19" r="1.5"/><circle cx="15" cy="19" r="1.5"/></svg>
-        </span>
-        <h2 class="metric-label !text-[10px]">Top 10</h2>
-        <svg class="w-3.5 h-3.5 text-[--ng-text-muted] section-chevron transition-transform ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-      </div>
-
-      <div class="section-body">
-      {% if top_latency or top_downtime %}
-      <div class="grid grid-cols-1 xl:grid-cols-2 gap-4 mb-4">
-        {% if top_latency %}
-        <div class="glass-card-static !p-0 overflow-hidden">
-          <div class="px-4 py-3 border-b border-white/[0.06] flex items-center gap-2">
-            <span class="w-2 h-2 rounded-full bg-ng-primary glow-primary"></span>
-            <span class="metric-label !text-[10px]">Highest Latency (24h)</span>
-          </div>
-          <table class="w-full text-xs">
-            <tbody>
+    {% if w.id == 'top10' %}
+    <div class="grid-stack-item" gs-id="top10" gs-x="{{ w.x }}" gs-y="{{ w.y }}" gs-w="{{ w.w }}" gs-h="{{ w.h }}" gs-min-h="2" gs-min-w="6">
+      <div class="grid-stack-item-content p-4 relative">
+        {{ widget_remove_btn() }}
+        {% if top_latency or top_downtime or top_cpu or top_ram or top_disk %}
+        <div class="flex items-center gap-2 mb-3 cursor-pointer section-header" data-section="top10">
+          <h2 class="metric-label !text-[10px]">Top 10</h2>
+          <svg class="w-3.5 h-3.5 text-[--ng-text-muted] section-chevron transition-transform ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+        </div>
+        <div class="section-body">
+        {% if top_latency or top_downtime %}
+        <div class="grid grid-cols-1 xl:grid-cols-2 gap-4 mb-4">
+          {% if top_latency %}
+          <div class="glass-card-static !p-0 overflow-hidden">
+            <div class="px-4 py-3 border-b border-white/[0.06] flex items-center gap-2">
+              <span class="w-2 h-2 rounded-full bg-ng-primary glow-primary"></span>
+              <span class="metric-label !text-[10px]">Highest Latency (24h)</span>
+            </div>
+            <table class="w-full text-xs"><tbody>
               {% for s in top_latency %}
               <tr class="border-t border-white/[0.04] hover:bg-white/[0.02] transition-colors">
                 <td class="px-4 py-2">
-                  <span class="w-1.5 h-1.5 rounded-full inline-block mr-1.5
-                    {% if s.online %}bg-ng-success{% elif s.online is false %}bg-ng-critical{% else %}bg-[--ng-text-muted]{% endif %}"></span>
+                  <span class="w-1.5 h-1.5 rounded-full inline-block mr-1.5 {% if s.online %}bg-ng-success{% elif s.online is false %}bg-ng-critical{% else %}bg-[--ng-text-muted]{% endif %}"></span>
                   <a href="/ping/{{ s.host.id }}" class="text-[--ng-text-primary] hover:text-ng-primary transition-colors">{{ s.host.name }}</a>
                 </td>
                 <td class="px-4 py-2 text-[--ng-text-muted] text-[10px] font-mono">{{ s.host.hostname }}</td>
                 <td class="px-4 py-2 text-right font-medium text-ng-primary font-mono tabular-nums">{{ s.avg_latency }} ms</td>
               </tr>
               {% endfor %}
-            </tbody>
-          </table>
-        </div>
-        {% endif %}
-        {% if top_downtime %}
-        <div class="glass-card-static !p-0 overflow-hidden">
-          <div class="px-4 py-3 border-b border-white/[0.06] flex items-center gap-2">
-            <span class="w-2 h-2 rounded-full bg-ng-critical"></span>
-            <span class="metric-label !text-[10px]">Lowest Uptime (24h)</span>
+            </tbody></table>
           </div>
-          <table class="w-full text-xs">
-            <tbody>
+          {% endif %}
+          {% if top_downtime %}
+          <div class="glass-card-static !p-0 overflow-hidden">
+            <div class="px-4 py-3 border-b border-white/[0.06] flex items-center gap-2">
+              <span class="w-2 h-2 rounded-full bg-ng-critical"></span>
+              <span class="metric-label !text-[10px]">Lowest Uptime (24h)</span>
+            </div>
+            <table class="w-full text-xs"><tbody>
               {% for s in top_downtime %}
               <tr class="border-t border-white/[0.04] hover:bg-white/[0.02] transition-colors">
                 <td class="px-4 py-2">
-                  <span class="w-1.5 h-1.5 rounded-full inline-block mr-1.5
-                    {% if s.online %}bg-ng-success{% elif s.online is false %}bg-ng-critical{% else %}bg-[--ng-text-muted]{% endif %}"></span>
+                  <span class="w-1.5 h-1.5 rounded-full inline-block mr-1.5 {% if s.online %}bg-ng-success{% elif s.online is false %}bg-ng-critical{% else %}bg-[--ng-text-muted]{% endif %}"></span>
                   <a href="/ping/{{ s.host.id }}" class="text-[--ng-text-primary] hover:text-ng-primary transition-colors">{{ s.host.name }}</a>
                 </td>
                 <td class="px-4 py-2 text-[--ng-text-muted] text-[10px] font-mono">{{ s.host.hostname }}</td>
-                <td class="px-4 py-2 text-right font-medium font-mono tabular-nums
-                  {% if s.uptime_pct >= 99 %}text-ng-success{% elif s.uptime_pct >= 90 %}text-ng-warning{% else %}text-ng-critical{% endif %}">
-                  {{ s.uptime_pct }}%
-                </td>
+                <td class="px-4 py-2 text-right font-medium font-mono tabular-nums {% if s.uptime_pct >= 99 %}text-ng-success{% elif s.uptime_pct >= 90 %}text-ng-warning{% else %}text-ng-critical{% endif %}">{{ s.uptime_pct }}%</td>
               </tr>
               {% endfor %}
-            </tbody>
-          </table>
+            </tbody></table>
+          </div>
+          {% endif %}
         </div>
+        {% endif %}
+        {% if top_cpu or top_ram or top_disk %}
+        <div class="grid grid-cols-1 xl:grid-cols-3 gap-4">
+          {% if top_cpu %}
+          <div class="glass-card-static !p-0 overflow-hidden">
+            <div class="px-4 py-3 border-b border-white/[0.06] flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-ng-warning"></span><span class="metric-label !text-[10px]">CPU</span></div>
+            <table class="w-full text-xs"><tbody>
+              {% for g in top_cpu %}{% set host_id = ping_host_map.get(g.name) %}
+              <tr class="border-t border-white/[0.04] hover:bg-white/[0.02] transition-colors">
+                <td class="px-4 py-2">{% if host_id %}<a href="/ping/{{ host_id }}" class="text-[--ng-text-primary] font-medium hover:text-ng-primary transition-colors">{{ g.name }}</a>{% else %}<span class="text-[--ng-text-primary] font-medium">{{ g.name }}</span>{% endif %}<span class="ml-1.5 px-1 py-0.5 rounded text-[9px] font-mono {% if g.type == 'VM' %}bg-ng-primary/15 text-ng-primary{% else %}bg-ng-mint/15 text-ng-mint{% endif %}">{{ g.type }}</span></td>
+                <td class="px-4 py-2 text-[--ng-text-muted] text-[10px] font-mono">{{ g.node }}</td>
+                <td class="px-4 py-2 text-right tabular-nums font-mono font-medium {% if g.cpu_pct > 80 %}text-ng-critical{% elif g.cpu_pct > 60 %}text-ng-warning{% else %}text-ng-warning/70{% endif %}">{{ g.cpu_pct }}%</td>
+              </tr>
+              {% endfor %}
+            </tbody></table>
+          </div>
+          {% endif %}
+          {% if top_ram %}
+          <div class="glass-card-static !p-0 overflow-hidden">
+            <div class="px-4 py-3 border-b border-white/[0.06] flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-ng-accent"></span><span class="metric-label !text-[10px]">RAM</span></div>
+            <table class="w-full text-xs"><tbody>
+              {% for g in top_ram %}{% set host_id = ping_host_map.get(g.name) %}
+              <tr class="border-t border-white/[0.04] hover:bg-white/[0.02] transition-colors">
+                <td class="px-4 py-2">{% if host_id %}<a href="/ping/{{ host_id }}" class="text-[--ng-text-primary] font-medium hover:text-ng-primary transition-colors">{{ g.name }}</a>{% else %}<span class="text-[--ng-text-primary] font-medium">{{ g.name }}</span>{% endif %}<span class="ml-1.5 px-1 py-0.5 rounded text-[9px] font-mono {% if g.type == 'VM' %}bg-ng-primary/15 text-ng-primary{% else %}bg-ng-mint/15 text-ng-mint{% endif %}">{{ g.type }}</span></td>
+                <td class="px-4 py-2 text-[--ng-text-muted] text-[10px] font-mono">{{ g.node }}</td>
+                <td class="px-4 py-2 text-right tabular-nums font-mono"><span class="font-medium text-ng-accent">{{ g.mem_used_gb }} GB</span>{% if g.mem_total_gb %}<span class="text-[--ng-text-muted]"> / {{ g.mem_total_gb }}</span>{% endif %}</td>
+              </tr>
+              {% endfor %}
+            </tbody></table>
+          </div>
+          {% endif %}
+          {% if top_disk %}
+          <div class="glass-card-static !p-0 overflow-hidden">
+            <div class="px-4 py-3 border-b border-white/[0.06] flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-ng-mint"></span><span class="metric-label !text-[10px]">Disk</span></div>
+            <table class="w-full text-xs"><tbody>
+              {% for g in top_disk %}{% set host_id = ping_host_map.get(g.name) %}
+              <tr class="border-t border-white/[0.04] hover:bg-white/[0.02] transition-colors">
+                <td class="px-4 py-2">{% if host_id %}<a href="/ping/{{ host_id }}" class="text-[--ng-text-primary] font-medium hover:text-ng-primary transition-colors">{{ g.name }}</a>{% else %}<span class="text-[--ng-text-primary] font-medium">{{ g.name }}</span>{% endif %}<span class="ml-1.5 px-1 py-0.5 rounded text-[9px] font-mono {% if g.type == 'VM' %}bg-ng-primary/15 text-ng-primary{% else %}bg-ng-mint/15 text-ng-mint{% endif %}">{{ g.type }}</span></td>
+                <td class="px-4 py-2 text-[--ng-text-muted] text-[10px] font-mono">{{ g.node }}</td>
+                <td class="px-4 py-2 text-right tabular-nums font-mono">{% if g.disk_used_gb > 0 %}<span class="font-medium {% if g.disk_pct > 90 %}text-ng-critical{% elif g.disk_pct > 75 %}text-ng-warning{% else %}text-ng-mint{% endif %}">{{ g.disk_pct }}%</span><span class="text-[--ng-text-muted]"> {{ g.disk_used_gb }}/{{ g.disk_total_gb }} GB</span>{% else %}<span class="text-[--ng-text-secondary]">{{ g.disk_total_gb }} GB</span><span class="text-[--ng-text-muted] text-[10px]"> alloc.</span>{% endif %}</td>
+              </tr>
+              {% endfor %}
+            </tbody></table>
+          </div>
+          {% endif %}
+        </div>
+        {% endif %}
+        </div>{# section-body #}
+        {% else %}
+        <p class="text-[--ng-text-muted] text-xs">No data</p>
         {% endif %}
       </div>
-      {% endif %}
-
-      {% if top_cpu or top_ram or top_disk %}
-      <div class="grid grid-cols-1 xl:grid-cols-3 gap-4">
-        {% if top_cpu %}
-        <div class="glass-card-static !p-0 overflow-hidden">
-          <div class="px-4 py-3 border-b border-white/[0.06] flex items-center gap-2">
-            <span class="w-2 h-2 rounded-full bg-ng-warning"></span>
-            <span class="metric-label !text-[10px]">CPU</span>
-          </div>
-          <table class="w-full text-xs">
-            <tbody>
-              {% for g in top_cpu %}
-              {% set host_id = ping_host_map.get(g.name) %}
-              <tr class="border-t border-white/[0.04] hover:bg-white/[0.02] transition-colors">
-                <td class="px-4 py-2">
-                  {% if host_id %}
-                  <a href="/ping/{{ host_id }}" class="text-[--ng-text-primary] font-medium hover:text-ng-primary transition-colors">{{ g.name }}</a>
-                  {% else %}
-                  <span class="text-[--ng-text-primary] font-medium">{{ g.name }}</span>
-                  {% endif %}
-                  <span class="ml-1.5 px-1 py-0.5 rounded text-[9px] font-mono
-                    {% if g.type == 'VM' %}bg-ng-primary/15 text-ng-primary{% else %}bg-ng-mint/15 text-ng-mint{% endif %}">{{ g.type }}</span>
-                </td>
-                <td class="px-4 py-2 text-[--ng-text-muted] text-[10px] font-mono">{{ g.node }}</td>
-                <td class="px-4 py-2 text-right tabular-nums font-mono font-medium
-                  {% if g.cpu_pct > 80 %}text-ng-critical{% elif g.cpu_pct > 60 %}text-ng-warning{% else %}text-ng-warning/70{% endif %}">
-                  {{ g.cpu_pct }}%
-                </td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-        {% endif %}
-        {% if top_ram %}
-        <div class="glass-card-static !p-0 overflow-hidden">
-          <div class="px-4 py-3 border-b border-white/[0.06] flex items-center gap-2">
-            <span class="w-2 h-2 rounded-full bg-ng-accent"></span>
-            <span class="metric-label !text-[10px]">RAM</span>
-          </div>
-          <table class="w-full text-xs">
-            <tbody>
-              {% for g in top_ram %}
-              {% set host_id = ping_host_map.get(g.name) %}
-              <tr class="border-t border-white/[0.04] hover:bg-white/[0.02] transition-colors">
-                <td class="px-4 py-2">
-                  {% if host_id %}
-                  <a href="/ping/{{ host_id }}" class="text-[--ng-text-primary] font-medium hover:text-ng-primary transition-colors">{{ g.name }}</a>
-                  {% else %}
-                  <span class="text-[--ng-text-primary] font-medium">{{ g.name }}</span>
-                  {% endif %}
-                  <span class="ml-1.5 px-1 py-0.5 rounded text-[9px] font-mono
-                    {% if g.type == 'VM' %}bg-ng-primary/15 text-ng-primary{% else %}bg-ng-mint/15 text-ng-mint{% endif %}">{{ g.type }}</span>
-                </td>
-                <td class="px-4 py-2 text-[--ng-text-muted] text-[10px] font-mono">{{ g.node }}</td>
-                <td class="px-4 py-2 text-right tabular-nums font-mono">
-                  <span class="font-medium text-ng-accent">{{ g.mem_used_gb }} GB</span>
-                  {% if g.mem_total_gb %}<span class="text-[--ng-text-muted]"> / {{ g.mem_total_gb }}</span>{% endif %}
-                </td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-        {% endif %}
-        {% if top_disk %}
-        <div class="glass-card-static !p-0 overflow-hidden">
-          <div class="px-4 py-3 border-b border-white/[0.06] flex items-center gap-2">
-            <span class="w-2 h-2 rounded-full bg-ng-mint"></span>
-            <span class="metric-label !text-[10px]">Disk</span>
-          </div>
-          <table class="w-full text-xs">
-            <tbody>
-              {% for g in top_disk %}
-              {% set host_id = ping_host_map.get(g.name) %}
-              <tr class="border-t border-white/[0.04] hover:bg-white/[0.02] transition-colors">
-                <td class="px-4 py-2">
-                  {% if host_id %}
-                  <a href="/ping/{{ host_id }}" class="text-[--ng-text-primary] font-medium hover:text-ng-primary transition-colors">{{ g.name }}</a>
-                  {% else %}
-                  <span class="text-[--ng-text-primary] font-medium">{{ g.name }}</span>
-                  {% endif %}
-                  <span class="ml-1.5 px-1 py-0.5 rounded text-[9px] font-mono
-                    {% if g.type == 'VM' %}bg-ng-primary/15 text-ng-primary{% else %}bg-ng-mint/15 text-ng-mint{% endif %}">{{ g.type }}</span>
-                </td>
-                <td class="px-4 py-2 text-[--ng-text-muted] text-[10px] font-mono">{{ g.node }}</td>
-                <td class="px-4 py-2 text-right tabular-nums font-mono">
-                  {% if g.disk_used_gb > 0 %}
-                  <span class="font-medium {% if g.disk_pct > 90 %}text-ng-critical{% elif g.disk_pct > 75 %}text-ng-warning{% else %}text-ng-mint{% endif %}">
-                    {{ g.disk_pct }}%
-                  </span>
-                  <span class="text-[--ng-text-muted]"> {{ g.disk_used_gb }}/{{ g.disk_total_gb }} GB</span>
-                  {% else %}
-                  <span class="text-[--ng-text-secondary]">{{ g.disk_total_gb }} GB</span>
-                  <span class="text-[--ng-text-muted] text-[10px]"> alloc.</span>
-                  {% endif %}
-                </td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-        {% endif %}
-      </div>
-      {% endif %}
-
-      </div>{# section-body #}
     </div>
     {% endif %}
 
   {% endfor %}
-  </div>{# widget-grid #}
+  </div>{# grid-stack #}
 
   {% if not host_stats %}
   <div class="glass-card-static text-center !p-12 mb-8">
@@ -632,6 +595,19 @@
     <a href="/ping" class="inline-block mt-4 ng-btn ng-btn-primary">Add first host</a>
   </div>
   {% endif %}
+
+  <!-- ── WIDGET LIBRARY (slide-in panel) ──────────────────────────────── -->
+  <div id="widget-library" class="widget-library hidden fixed top-0 right-0 h-full w-72 z-50 p-5 overflow-y-auto"
+       style="background:rgba(10,12,28,0.95);backdrop-filter:blur(24px);border-left:1px solid rgba(255,255,255,0.08)">
+    <div class="flex items-center justify-between mb-5">
+      <h3 class="text-[--ng-text-primary] text-sm font-display tracking-wider">Widget Library</h3>
+      <button onclick="window._dashToggleLibrary()" class="text-[--ng-text-muted] hover:text-[--ng-text-primary] transition-colors">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <p class="text-[--ng-text-muted] text-[10px] font-mono mb-4">Drag widgets onto the dashboard or click to add.</p>
+    <div id="widget-lib-items" class="space-y-2"></div>
+  </div>
 
 </div>
 {% endblock %}
@@ -1088,171 +1064,161 @@
   if (!window._pageTimeouts) window._pageTimeouts = [];
   window._pageTimeouts.push(setTimeout(() => location.reload(), 5 * 60 * 1000));
 
-  // ── Dashboard Layout Configurator ────────────────────────────────────
-  (function() {
-    const grid = document.getElementById('widget-grid');
-    const editBtn = document.getElementById('edit-layout-btn');
-    if (!grid || !editBtn) return;
+  // ── Dashboard Layout Configurator (gridstack) ──────────────────────
+</script>
+<script src="https://cdn.jsdelivr.net/npm/gridstack@10/dist/gridstack-all.js"></script>
+<script>
+  const WIDGET_META = {
+    integrations: { label: 'Integrations', icon: 'M13 10V3L4 14h7v7l9-11h-7z', defW: 6, defH: 2 },
+    syslog:       { label: 'Syslog',       icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z', defW: 6, defH: 2 },
+    gravity:      { label: 'Gravity Well', icon: 'M21 12a9 9 0 11-18 0 9 9 0 0118 0z', defW: 12, defH: 4 },
+    offline:      { label: 'Offline Hosts',icon: 'M18.364 5.636a9 9 0 010 12.728M5.636 18.364a9 9 0 010-12.728', defW: 12, defH: 2 },
+    hosts:        { label: 'All Hosts',    icon: 'M4 6h16M4 10h16M4 14h16M4 18h16', defW: 12, defH: 3 },
+    proxmox:      { label: 'Proxmox',      icon: 'M5 12h14M12 5l7 7-7 7', defW: 12, defH: 2 },
+    top10:        { label: 'Top 10',       icon: 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6m6 0h6m-6 0V9a2 2 0 012-2h2a2 2 0 012 2v10m6 0v-4a2 2 0 00-2-2h-2a2 2 0 00-2 2v4', defW: 12, defH: 4 },
+  };
 
-    let editing = false;
-    let dragSrc = null;
+  let _gsGrid = null;
+  let _editing = false;
 
-    // Widget label map
-    const LABELS = {
-      integrations: 'Integrations', syslog: 'Syslog', gravity: 'Gravity Well',
-      offline: 'Offline Hosts', hosts: 'All Hosts', proxmox: 'Proxmox', top10: 'Top 10',
-    };
+  function initGridStack() {
+    const el = document.getElementById('widget-grid');
+    if (!el) return;
+    _gsGrid = GridStack.init({
+      column: 12,
+      cellHeight: 70,
+      margin: 8,
+      animate: true,
+      float: false,
+      disableResize: true,
+      disableDrag: true,
+      removable: false,
+    }, el);
+  }
+  initGridStack();
 
-    function getWidgets() {
-      return [...grid.querySelectorAll('.dash-widget[data-widget]')];
+  // Remove widget
+  window._dashRemoveWidget = function(btn) {
+    if (!_gsGrid || !_editing) return;
+    const item = btn.closest('.grid-stack-item');
+    if (item) _gsGrid.removeWidget(item);
+    updateLibrary();
+  };
+
+  // Widget library
+  function updateLibrary() {
+    const libItems = document.getElementById('widget-lib-items');
+    if (!libItems) return;
+    const active = new Set([...(document.querySelectorAll('.grid-stack-item'))].map(el => el.getAttribute('gs-id')));
+    libItems.innerHTML = '';
+    for (const [id, meta] of Object.entries(WIDGET_META)) {
+      if (active.has(id)) continue;
+      const item = document.createElement('div');
+      item.className = 'widget-lib-item flex items-center gap-3 px-3 py-2.5 rounded-lg border border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.06] hover:border-ng-primary/30 transition-colors cursor-pointer';
+      item.innerHTML = `
+        <svg class="w-4 h-4 text-ng-primary shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="${meta.icon}"/>
+        </svg>
+        <span class="text-[--ng-text-primary] text-xs font-medium">${meta.label}</span>
+        <svg class="w-3.5 h-3.5 text-[--ng-text-muted] ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+        </svg>
+      `;
+      item.addEventListener('click', () => addWidgetFromLibrary(id));
+      libItems.appendChild(item);
     }
+  }
 
-    function getLayout() {
-      return getWidgets().map(el => ({
-        id: el.dataset.widget,
-        size: el.dataset.size || 'full',
-      }));
+  function addWidgetFromLibrary(id) {
+    if (!_gsGrid) return;
+    const meta = WIDGET_META[id];
+    const content = `<div class="grid-stack-item-content p-4 relative">
+      <button class="widget-remove-btn absolute top-1 right-1 z-10 w-5 h-5 rounded-full bg-ng-critical/20 text-ng-critical hover:bg-ng-critical/40 items-center justify-center transition-colors" onclick="window._dashRemoveWidget(this)">
+        <svg class="w-3 h-3 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+      <div class="flex items-center gap-2 h-full">
+        <svg class="w-5 h-5 text-[--ng-text-muted]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="${meta.icon}"/></svg>
+        <p class="text-[--ng-text-secondary] text-xs font-mono">${meta.label} — save & reload to populate</p>
+      </div>
+    </div>`;
+    _gsGrid.addWidget({ id, w: meta.defW, h: meta.defH, content });
+    updateLibrary();
+  }
+
+  window._dashToggleLibrary = function() {
+    document.getElementById('widget-library').classList.toggle('hidden');
+  };
+
+  function enterEditMode() {
+    _editing = true;
+    const btn = document.getElementById('edit-layout-btn');
+    btn.classList.add('!text-ng-primary', '!border-ng-primary/30', '!bg-ng-primary/[0.06]');
+    document.getElementById('widget-grid').parentElement.classList.add('gs-editing');
+    _gsGrid.enableMove(true);
+    _gsGrid.enableResize(true);
+    updateLibrary();
+
+    if (!document.getElementById('layout-save-bar')) {
+      const bar = document.createElement('div');
+      bar.id = 'layout-save-bar';
+      bar.className = 'fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-5 py-3 rounded-xl';
+      bar.style.cssText = 'backdrop-filter:blur(20px);background:rgba(10,12,28,0.92);border:1px solid rgba(99,102,241,0.3)';
+      bar.innerHTML = `
+        <span class="text-[--ng-text-secondary] text-xs font-mono">Drag & resize widgets</span>
+        <button onclick="window._dashToggleLibrary()" class="ng-btn !py-1.5 !px-4 !text-xs border border-white/[0.1] text-[--ng-text-secondary] hover:text-ng-primary hover:border-ng-primary/30">
+          <svg class="w-3.5 h-3.5 inline mr-1 -mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>Add
+        </button>
+        <button id="layout-save" class="ng-btn ng-btn-primary !py-1.5 !px-4 !text-xs">Save</button>
+        <button id="layout-cancel" class="ng-btn !py-1.5 !px-4 !text-xs text-[--ng-text-secondary] hover:text-[--ng-text-primary]">Cancel</button>
+      `;
+      document.body.appendChild(bar);
+      document.getElementById('layout-save').addEventListener('click', saveLayout);
+      document.getElementById('layout-cancel').addEventListener('click', exitEditMode);
     }
+  }
 
-    function enterEditMode() {
-      editing = true;
-      editBtn.classList.add('!text-ng-primary', '!bg-ng-primary/10');
-      grid.classList.add('dash-editing');
-      getWidgets().forEach(w => {
-        w.draggable = true;
-        w.classList.add('dash-widget-editing');
-        // Show drag handles
-        const handle = w.querySelector('.drag-handle');
-        if (handle) handle.classList.remove('hidden');
-        // Add size toggle + label bar if not present
-        if (!w.querySelector('.widget-edit-bar')) {
-          const bar = document.createElement('div');
-          bar.className = 'widget-edit-bar flex items-center justify-between px-3 py-1.5 mb-2 rounded-lg bg-white/[0.03] border border-white/[0.06]';
-          const label = document.createElement('span');
-          label.className = 'text-[10px] font-mono text-[--ng-text-muted]';
-          label.textContent = LABELS[w.dataset.widget] || w.dataset.widget;
-          const sizeBtn = document.createElement('button');
-          sizeBtn.type = 'button';
-          sizeBtn.className = 'text-[10px] font-mono px-2 py-0.5 rounded bg-white/[0.06] text-[--ng-text-secondary] hover:bg-white/[0.12] transition-colors';
-          sizeBtn.textContent = w.dataset.size === 'half' ? 'Half' : 'Full';
-          sizeBtn.addEventListener('click', () => {
-            const next = w.dataset.size === 'half' ? 'full' : 'half';
-            w.dataset.size = next;
-            sizeBtn.textContent = next === 'half' ? 'Half' : 'Full';
-            w.classList.toggle('md:col-span-2', next === 'full');
-            // Reinit gravity canvas if it was resized
-            if (w.dataset.widget === 'gravity') setTimeout(() => initGravityWell(0), 100);
-          });
-          bar.appendChild(label);
-          bar.appendChild(sizeBtn);
-          w.insertBefore(bar, w.firstChild);
-        }
+  function exitEditMode() {
+    _editing = false;
+    const btn = document.getElementById('edit-layout-btn');
+    btn.classList.remove('!text-ng-primary', '!border-ng-primary/30', '!bg-ng-primary/[0.06]');
+    document.getElementById('widget-grid').parentElement.classList.remove('gs-editing');
+    _gsGrid.enableMove(false);
+    _gsGrid.enableResize(false);
+    document.getElementById('widget-library').classList.add('hidden');
+    const bar = document.getElementById('layout-save-bar');
+    if (bar) bar.remove();
+  }
+
+  async function saveLayout() {
+    const items = _gsGrid.getGridItems();
+    const layout = items.map(el => ({
+      id: el.getAttribute('gs-id'),
+      x: parseInt(el.getAttribute('gs-x') || 0),
+      y: parseInt(el.getAttribute('gs-y') || 0),
+      w: parseInt(el.getAttribute('gs-w') || 12),
+      h: parseInt(el.getAttribute('gs-h') || 2),
+    })).filter(w => w.id);
+    try {
+      const res = await fetch('/api/dashboard-layout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ layout }),
       });
-
-      // Add save/cancel bar
-      if (!document.getElementById('layout-save-bar')) {
-        const bar = document.createElement('div');
-        bar.id = 'layout-save-bar';
-        bar.className = 'fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-5 py-3 rounded-xl glass-card-static !border-ng-primary/30 !bg-[--ng-bg-card]/95';
-        bar.style.backdropFilter = 'blur(20px)';
-        bar.innerHTML = `
-          <span class="text-[--ng-text-secondary] text-xs font-mono">Drag to reorder, toggle size</span>
-          <button id="layout-save" class="ng-btn ng-btn-primary !py-1.5 !px-4 !text-xs">Save</button>
-          <button id="layout-cancel" class="ng-btn !py-1.5 !px-4 !text-xs text-[--ng-text-secondary] hover:text-[--ng-text-primary]">Cancel</button>
-        `;
-        document.body.appendChild(bar);
-        document.getElementById('layout-save').addEventListener('click', saveLayout);
-        document.getElementById('layout-cancel').addEventListener('click', exitEditMode);
-      }
-    }
-
-    function exitEditMode() {
-      editing = false;
-      editBtn.classList.remove('!text-ng-primary', '!bg-ng-primary/10');
-      grid.classList.remove('dash-editing');
-      getWidgets().forEach(w => {
-        w.draggable = false;
-        w.classList.remove('dash-widget-editing', 'dash-drag-over');
-        const handle = w.querySelector('.drag-handle');
-        if (handle) handle.classList.add('hidden');
-        const bar = w.querySelector('.widget-edit-bar');
-        if (bar) bar.remove();
-      });
-      const saveBar = document.getElementById('layout-save-bar');
-      if (saveBar) saveBar.remove();
-    }
-
-    async function saveLayout() {
-      const layout = getLayout();
-      try {
-        const res = await fetch('/api/dashboard-layout', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ layout }),
-        });
-        const data = await res.json();
-        if (data.ok) {
-          window.showToast && window.showToast('Layout saved', 'success');
-          exitEditMode();
-        } else {
-          window.showToast && window.showToast('Save failed: ' + (data.error || 'Unknown'), 'critical');
-        }
-      } catch (e) {
-        window.showToast && window.showToast('Save failed', 'critical');
-      }
-    }
-
-    editBtn.addEventListener('click', () => {
-      if (editing) exitEditMode();
-      else enterEditMode();
-    });
-
-    // Drag and drop
-    grid.addEventListener('dragstart', e => {
-      const widget = e.target.closest('.dash-widget');
-      if (!widget || !editing) { e.preventDefault(); return; }
-      dragSrc = widget;
-      widget.style.opacity = '0.4';
-      e.dataTransfer.effectAllowed = 'move';
-    });
-
-    grid.addEventListener('dragend', e => {
-      const widget = e.target.closest('.dash-widget');
-      if (widget) widget.style.opacity = '';
-      getWidgets().forEach(w => w.classList.remove('dash-drag-over'));
-      dragSrc = null;
-    });
-
-    grid.addEventListener('dragover', e => {
-      e.preventDefault();
-      e.dataTransfer.dropEffect = 'move';
-      const target = e.target.closest('.dash-widget');
-      if (!target || target === dragSrc) return;
-      getWidgets().forEach(w => w.classList.remove('dash-drag-over'));
-      target.classList.add('dash-drag-over');
-    });
-
-    grid.addEventListener('dragleave', e => {
-      const target = e.target.closest('.dash-widget');
-      if (target) target.classList.remove('dash-drag-over');
-    });
-
-    grid.addEventListener('drop', e => {
-      e.preventDefault();
-      const target = e.target.closest('.dash-widget');
-      if (!target || !dragSrc || target === dragSrc) return;
-      target.classList.remove('dash-drag-over');
-      // Determine insertion position
-      const widgets = getWidgets();
-      const srcIdx = widgets.indexOf(dragSrc);
-      const tgtIdx = widgets.indexOf(target);
-      if (srcIdx < tgtIdx) {
-        target.after(dragSrc);
+      const data = await res.json();
+      if (data.ok) {
+        window.showToast && window.showToast('Layout saved', 'success');
+        exitEditMode();
       } else {
-        target.before(dragSrc);
+        window.showToast && window.showToast('Save failed: ' + (data.error || ''), 'critical');
       }
-    });
-  })();
+    } catch (e) {
+      window.showToast && window.showToast('Save failed', 'critical');
+    }
+  }
+
+  document.getElementById('edit-layout-btn')?.addEventListener('click', () => {
+    if (_editing) exitEditMode(); else enterEditMode();
+  });
 </script>
 {% endblock %}
 
