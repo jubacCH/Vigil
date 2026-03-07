@@ -409,12 +409,62 @@ async def ping_detail(host_id: int, request: Request, db: AsyncSession = Depends
     except Exception:
         pass
 
+    # ── Health score (same formula as dashboard gravity well) ───────────────
+    _online = latest.success if latest else None
+    _lat = latest.latency_ms if latest else None
+    _thr = host.latency_threshold_ms
+    if _online is False:
+        health_score = 1.0
+    elif host.maintenance:
+        health_score = 0.5
+    elif _online is None:
+        health_score = 0.8
+    else:
+        _hs = 0.0
+        if _lat is not None and _thr:
+            r = _lat / _thr
+            if r <= 0.5: _hs += r * 0.05
+            elif r <= 0.8: _hs += 0.025 + (r - 0.5) / 0.3 * 0.075
+            elif r <= 1.0: _hs += 0.10 + (r - 0.8) / 0.2 * 0.10
+            else: _hs += 0.20
+        elif _lat is not None:
+            _hs += min(_lat / 200.0, 0.20)
+        deficit = 1 - uptime_24h / 100.0
+        if deficit > 0: _hs += min((deficit ** 0.5) * 0.15, 0.15)
+        # Packet loss from last 20 results
+        recent = results[-20:] if results else []
+        if recent:
+            losses = sum(1 for r in recent if not r.success)
+            if losses > 0: _hs += min((losses / len(recent)) ** 0.6 * 0.10, 0.10)
+        # Proxmox guest metrics
+        if proxmox_guest:
+            from database import get_setting as _gs
+            _cpu_t = int(await _gs(db, "proxmox_cpu_threshold", "85"))
+            _ram_t = int(await _gs(db, "proxmox_ram_threshold", "85"))
+            _disk_t = int(await _gs(db, "proxmox_disk_threshold", "90"))
+            for metric, threshold, weight in [
+                (proxmox_guest.get("cpu_pct", 0), _cpu_t, 0.15),
+                ((proxmox_guest.get("mem_used_gb", 0) / max(proxmox_guest.get("mem_total_gb", 1), 0.01)) * 100, _ram_t, 0.15),
+                (proxmox_guest.get("disk_pct", 0), _disk_t, 0.10),
+            ]:
+                r = metric / threshold if threshold else 0
+                if r <= 0.5: _hs += r * (weight * 0.2)
+                elif r <= 0.8: _hs += weight * 0.1 + (r - 0.5) / 0.3 * (weight * 0.4)
+                elif r <= 1.0: _hs += weight * 0.5 + (r - 0.8) / 0.2 * (weight * 0.5)
+                else: _hs += weight
+        # Syslog errors
+        if syslog_count > 0:
+            _hs += min((syslog_count ** 0.4) / 10.0 * 0.10, 0.10)
+        health_score = round(min(_hs, 1.0), 3)
+    health_pct = round((1 - health_score) * 100)
+
     return templates.TemplateResponse("ping_detail.html", {
         "request": request,
         "host": host,
         "dns_info": dns_info,
         "latest": latest,
         "uptime_pct": uptime_24h,
+        "health_pct": health_pct,
         "uptime_7d": uptime_7d,
         "uptime_30d": uptime_30d,
         "avg_latency": avg_lat,

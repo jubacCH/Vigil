@@ -73,6 +73,14 @@
         {% endif %}
       </p>
     </div>
+    <!-- Health Score -->
+    <div class="shrink-0 text-right">
+      <p class="text-3xl font-mono font-bold tabular-nums leading-none
+        {% if health_pct >= 90 %}text-ng-success
+        {% elif health_pct >= 70 %}text-ng-warning
+        {% else %}text-ng-critical{% endif %}">{{ health_pct }}%</p>
+      <p class="text-[10px] text-[--ng-text-muted] uppercase tracking-wider mt-1">Health</p>
+    </div>
   </div>
 
   <!-- Tabs -->
