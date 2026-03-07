@@ -33,7 +33,7 @@ import time
 import urllib.error
 import urllib.request
 
-__version__ = "1.3.0"
+__version__ = "1.4.0"
 
 
 # ── WMI helpers via PowerShell ───────────────────────────────────────────────
@@ -641,6 +641,89 @@ def _get_static_info():
     return info
 
 
+# ── Log collector ───────────────────────────────────────────────────────────
+
+# Severity mapping: Windows Event Log Level → Syslog severity
+_WIN_LEVEL_TO_SYSLOG = {
+    1: 2,   # Critical → Critical
+    2: 3,   # Error → Error
+    3: 4,   # Warning → Warning
+    4: 6,   # Information → Informational
+    5: 7,   # Verbose → Debug
+}
+
+_last_log_ts = None  # ISO timestamp of last collected log
+
+
+def get_recent_logs(max_events=200):
+    """Collect recent Windows Event Log entries (System + Application)."""
+    global _last_log_ts
+
+    # Build time filter: either since last check or last 60 seconds
+    if _last_log_ts:
+        time_filter = f"TimeCreated > '{_last_log_ts}'"
+    else:
+        time_filter = "TimeCreated > (Get-Date).AddSeconds(-60)"
+
+    logs = []
+    for log_name in ("System", "Application"):
+        ps_cmd = (
+            f"try {{ Get-WinEvent -FilterHashtable @{{LogName='{log_name}'; Level=1,2,3}} "
+            f"-MaxEvents {max_events} -ErrorAction Stop | "
+            f"Where-Object {{ $_.{time_filter} }} | "
+            f"Select-Object TimeCreated, Id, Level, ProviderName, Message | "
+            f"ForEach-Object {{ @{{ "
+            f"ts = $_.TimeCreated.ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ'); "
+            f"level = $_.Level; "
+            f"source = $_.ProviderName; "
+            f"id = $_.Id; "
+            f"msg = if ($_.Message.Length -gt 500) {{ $_.Message.Substring(0,500) }} else {{ $_.Message }} "
+            f"}} }}"
+            f"}} catch {{ }}"
+        )
+        result = _ps_json(ps_cmd, timeout=15)
+        if result:
+            # PowerShell returns single object (not array) if only 1 result
+            if isinstance(result, dict):
+                result = [result]
+            for entry in result:
+                if not isinstance(entry, dict):
+                    continue
+                logs.append({
+                    "timestamp": entry.get("ts", ""),
+                    "severity": _WIN_LEVEL_TO_SYSLOG.get(entry.get("level"), 6),
+                    "app_name": entry.get("source", ""),
+                    "message": (entry.get("msg") or "").replace("\r\n", " ").replace("\n", " "),
+                    "facility": 1 if log_name == "Application" else 0,  # user vs kern
+                })
+
+    if logs:
+        # Update last timestamp to newest entry
+        newest = max((l["timestamp"] for l in logs if l["timestamp"]), default=None)
+        if newest:
+            _last_log_ts = newest
+
+    return logs
+
+
+def send_logs(server, token, hostname, logs):
+    """Send collected logs to the server."""
+    if not logs:
+        return True
+    url = f"{server.rstrip('/')}/api/agent/logs"
+    payload = json.dumps({"hostname": hostname, "logs": logs}).encode("utf-8")
+    req = urllib.request.Request(url, data=payload, headers={
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {token}",
+    }, method="POST")
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            return resp.status == 200
+    except Exception as e:
+        print(f"[nodeglow-agent] Log send error: {e}", file=sys.stderr)
+        return False
+
+
 def collect_all():
     """Collect all system metrics."""
     data = {
@@ -928,6 +1011,9 @@ def main():
     update_interval = 300  # 5 minutes
     last_update_check = 0
 
+    log_interval = 60  # collect logs every 60 seconds
+    last_log_send = 0
+
     while True:
         try:
             data = collect_all()
@@ -935,6 +1021,19 @@ def main():
             if ok:
                 print(f"[nodeglow-agent] OK cpu={data.get('cpu_pct', '?')}% "
                       f"mem={data.get('memory', {}).get('pct', '?')}%")
+
+            # Send logs less frequently than metrics
+            now = time.time()
+            if now - last_log_send >= log_interval:
+                last_log_send = now
+                try:
+                    logs = get_recent_logs()
+                    if logs:
+                        lok = send_logs(args.server, args.token, socket.gethostname(), logs)
+                        print(f"[nodeglow-agent] Logs: {len(logs)} entries {'sent' if lok else 'FAILED'}")
+                except Exception as e:
+                    print(f"[nodeglow-agent] Log collect error: {e}", file=sys.stderr)
+
         except Exception as e:
             print(f"[nodeglow-agent] error: {e}", file=sys.stderr)
         if args.once:

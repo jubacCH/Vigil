@@ -28,7 +28,7 @@ import time
 import urllib.error
 import urllib.request
 
-__version__ = "1.2.0"
+__version__ = "1.3.0"
 
 
 # ── Collectors ───────────────────────────────────────────────────────────────
@@ -228,6 +228,122 @@ def get_docker_containers():
     except Exception:
         pass
     return containers
+
+
+# ── Log collector ───────────────────────────────────────────────────────────
+
+# journalctl priority → syslog severity (same numbering)
+_last_log_cursor = None  # journald cursor for dedup
+
+
+def get_recent_logs(max_entries=200):
+    """Collect recent system log entries via journalctl."""
+    global _last_log_cursor
+
+    cmd = [
+        "journalctl", "--no-pager", "-o", "json",
+        "-p", "warning",  # priority 0-4 (emerg..warning)
+        "-n", str(max_entries),
+    ]
+    if _last_log_cursor:
+        cmd += ["--after-cursor", _last_log_cursor]
+    else:
+        cmd += ["--since", "-60s"]
+
+    logs = []
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+        if result.returncode != 0:
+            return logs
+
+        newest_cursor = None
+        for line in result.stdout.strip().splitlines():
+            if not line:
+                continue
+            try:
+                entry = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+
+            priority = int(entry.get("PRIORITY", 6))
+            ts_usec = entry.get("__REALTIME_TIMESTAMP")
+            if ts_usec:
+                ts = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(int(ts_usec) / 1_000_000))
+            else:
+                ts = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+
+            msg = entry.get("MESSAGE", "")
+            if isinstance(msg, list):
+                msg = " ".join(str(m) for m in msg)
+            if len(msg) > 500:
+                msg = msg[:500]
+
+            logs.append({
+                "timestamp": ts,
+                "severity": priority,
+                "app_name": entry.get("SYSLOG_IDENTIFIER") or entry.get("_COMM", ""),
+                "message": msg,
+                "facility": int(entry.get("SYSLOG_FACILITY", 1)),
+            })
+
+            newest_cursor = entry.get("__CURSOR")
+
+        if newest_cursor:
+            _last_log_cursor = newest_cursor
+
+    except FileNotFoundError:
+        # journalctl not available, try reading /var/log/syslog
+        return _get_syslog_fallback()
+    except Exception:
+        pass
+
+    return logs
+
+
+def _get_syslog_fallback(max_lines=100):
+    """Fallback: read recent lines from /var/log/syslog or /var/log/messages."""
+    import re
+    logs = []
+    for path in ("/var/log/syslog", "/var/log/messages"):
+        try:
+            result = subprocess.run(
+                ["tail", "-n", str(max_lines), path],
+                capture_output=True, text=True, timeout=5,
+            )
+            for line in result.stdout.strip().splitlines():
+                # Basic syslog line: "Mon DD HH:MM:SS hostname app[pid]: message"
+                m = re.match(r"(\w{3}\s+\d+\s+\d{2}:\d{2}:\d{2})\s+\S+\s+(\S+?)(?:\[\d+\])?:\s*(.*)", line)
+                if m:
+                    logs.append({
+                        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                        "severity": 4,  # warning (conservative)
+                        "app_name": m.group(2),
+                        "message": m.group(3)[:500],
+                        "facility": 1,
+                    })
+            if logs:
+                break
+        except Exception:
+            continue
+    return logs
+
+
+def send_logs(server, token, hostname, logs):
+    """Send collected logs to the server."""
+    if not logs:
+        return True
+    url = f"{server.rstrip('/')}/api/agent/logs"
+    payload = json.dumps({"hostname": hostname, "logs": logs}).encode("utf-8")
+    req = urllib.request.Request(url, data=payload, headers={
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {token}",
+    }, method="POST")
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            return resp.status == 200
+    except Exception as e:
+        print(f"[nodeglow-agent] Log send error: {e}", file=sys.stderr)
+        return False
 
 
 def collect_all():
@@ -464,6 +580,9 @@ def main():
     update_interval = 300  # 5 minutes
     last_update_check = 0
 
+    log_interval = 60  # collect logs every 60 seconds
+    last_log_send = 0
+
     while True:
         try:
             data = collect_all()
@@ -472,6 +591,19 @@ def main():
                 print(f"[nodeglow-agent] OK cpu={data.get('cpu_pct', '?')}% "
                       f"mem={data.get('memory', {}).get('pct', '?')}% "
                       f"load={data.get('load', {}).get('load_1', '?')}")
+
+            # Send logs less frequently than metrics
+            now = time.time()
+            if now - last_log_send >= log_interval:
+                last_log_send = now
+                try:
+                    logs = get_recent_logs()
+                    if logs:
+                        lok = send_logs(args.server, args.token, socket.gethostname(), logs)
+                        print(f"[nodeglow-agent] Logs: {len(logs)} entries {'sent' if lok else 'FAILED'}")
+                except Exception as e:
+                    print(f"[nodeglow-agent] Log collect error: {e}", file=sys.stderr)
+
         except Exception as e:
             print(f"[nodeglow-agent] error: {e}", file=sys.stderr)
         if args.once:

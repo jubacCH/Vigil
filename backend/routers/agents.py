@@ -170,6 +170,104 @@ async def agent_report(request: Request):
     return {"ok": True}
 
 
+# ── API: Agent log submission ────────────────────────────────────────────────
+
+@router.post("/api/agent/logs")
+async def agent_logs(request: Request):
+    """Receive log entries from a Nodeglow agent and feed into syslog system."""
+    auth = request.headers.get("authorization", "")
+    if not auth.startswith("Bearer "):
+        return JSONResponse({"error": "Missing token"}, status_code=401)
+    token = auth[7:].strip()
+    if not token:
+        return JSONResponse({"error": "Empty token"}, status_code=401)
+
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"error": "Invalid JSON"}, status_code=400)
+
+    async with AsyncSessionLocal() as db:
+        result = await db.execute(select(Agent).where(Agent.token == token, Agent.enabled == True))
+        agent = result.scalar_one_or_none()
+        if not agent:
+            return JSONResponse({"error": "Invalid or disabled token"}, status_code=403)
+
+    hostname = body.get("hostname", agent.hostname or "unknown")
+    logs = body.get("logs", [])
+    if not logs:
+        return {"ok": True, "count": 0}
+
+    # Get client IP for source_ip
+    source_ip = request.client.host if request.client else "0.0.0.0"
+
+    # Resolve host_id via syslog host cache
+    try:
+        from services.syslog import _resolve_host_id, _refresh_host_cache
+        import asyncio
+        await _refresh_host_cache()
+        host_id = _resolve_host_id(source_ip, hostname)
+    except Exception:
+        host_id = None
+
+    # Insert logs into SyslogMessage table
+    from models.syslog import SyslogMessage
+    count = 0
+    try:
+        async with AsyncSessionLocal() as db:
+            for entry in logs[:500]:  # cap at 500 per request
+                ts_str = entry.get("timestamp", "")
+                try:
+                    ts = datetime.strptime(ts_str, "%Y-%m-%dT%H:%M:%SZ")
+                except Exception:
+                    ts = datetime.utcnow()
+
+                msg = SyslogMessage(
+                    timestamp=ts,
+                    received_at=datetime.utcnow(),
+                    source_ip=source_ip,
+                    hostname=hostname,
+                    facility=entry.get("facility"),
+                    severity=entry.get("severity", 6),
+                    app_name=entry.get("app_name", ""),
+                    message=entry.get("message", "")[:2000],
+                    host_id=host_id,
+                )
+                db.add(msg)
+                count += 1
+
+            await db.commit()
+    except Exception as e:
+        logger.error("Failed to store agent logs: %s", e)
+        return JSONResponse({"error": "DB error"}, status_code=500)
+
+    # Broadcast to live tail subscribers (without re-inserting to DB)
+    try:
+        from services.syslog import _subscribers
+        import asyncio
+        for entry in logs[:50]:
+            msg_data = {
+                "timestamp": datetime.utcnow(),
+                "source_ip": source_ip,
+                "hostname": hostname,
+                "facility": entry.get("facility"),
+                "severity": entry.get("severity", 6),
+                "app_name": entry.get("app_name", ""),
+                "message": entry.get("message", "")[:500],
+                "host_id": host_id,
+            }
+            for q in _subscribers[:]:
+                try:
+                    q.put_nowait(msg_data)
+                except asyncio.QueueFull:
+                    pass
+    except Exception:
+        pass  # live tail is optional
+
+    logger.debug("Agent %s sent %d log entries", hostname, count)
+    return {"ok": True, "count": count}
+
+
 # ── UI: Agent list ───────────────────────────────────────────────────────────
 
 @router.get("/agents")
