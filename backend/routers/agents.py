@@ -11,7 +11,7 @@ from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import delete, select, update
 
-from database import AsyncSessionLocal, get_setting, set_setting
+from database import AsyncSessionLocal, PingHost, PingResult, get_setting, set_setting
 from models.agent import Agent, AgentSnapshot
 from services.websocket import broadcast_agent_metric
 
@@ -68,6 +68,18 @@ async def agent_enroll(request: Request):
         token = secrets.token_hex(24)
         agent = Agent(name=hostname, hostname=hostname, token=token, platform=plat, arch=arch)
         db.add(agent)
+
+        # Auto-create PingHost if not already present
+        ping_result = await db.execute(select(PingHost).where(PingHost.hostname == hostname))
+        if not ping_result.scalar_one_or_none():
+            db.add(PingHost(
+                name=hostname,
+                hostname=hostname,
+                check_type="icmp",
+                source="agent",
+                source_detail=f"auto-enrolled agent",
+            ))
+
         await db.commit()
         await db.refresh(agent)
         logger.info("Agent auto-enrolled: %s (id=%d)", hostname, agent.id)
@@ -244,6 +256,18 @@ async def agent_add(request: Request):
 @router.post("/agents/{agent_id}/delete")
 async def agent_delete(request: Request, agent_id: int):
     async with AsyncSessionLocal() as db:
+        # Get agent hostname to clean up PingHost
+        result = await db.execute(select(Agent).where(Agent.id == agent_id))
+        agent = result.scalar_one_or_none()
+        if agent and agent.hostname:
+            # Find agent-sourced PingHost and delete its results first
+            ph = await db.execute(
+                select(PingHost).where(PingHost.hostname == agent.hostname, PingHost.source == "agent")
+            )
+            ping_host = ph.scalar_one_or_none()
+            if ping_host:
+                await db.execute(delete(PingResult).where(PingResult.host_id == ping_host.id))
+                await db.execute(delete(PingHost).where(PingHost.id == ping_host.id))
         await db.execute(delete(AgentSnapshot).where(AgentSnapshot.agent_id == agent_id))
         await db.execute(delete(Agent).where(Agent.id == agent_id))
         await db.commit()
