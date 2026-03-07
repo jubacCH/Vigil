@@ -1,7 +1,7 @@
 """Agent model — stores registered agent hosts and their metric snapshots."""
 from datetime import datetime
 
-from sqlalchemy import Boolean, Column, DateTime, Float, Index, Integer, String, Text
+from sqlalchemy import Boolean, Column, DateTime, Float, Index, Integer, String, Text, func
 
 from models.base import Base
 
@@ -19,6 +19,10 @@ class Agent(Base):
     enabled    = Column(Boolean, default=True)
     last_seen  = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        Index("ix_agents_hostname_lower", func.lower(hostname), unique=True),
+    )
 
 
 class AgentSnapshot(Base):
