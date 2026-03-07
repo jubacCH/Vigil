@@ -255,13 +255,24 @@ async def dashboard(request: Request, db: AsyncSession = Depends(get_db)):
                 )
             )).scalars().all()
 
+        # Sort historical snapshots by time (oldest first) so recent slicing works
+        hist_snaps_sorted = sorted(hist_snaps, key=lambda s: s.timestamp)
+
+        # Build per-guest time series from ALL historical snapshots
         hist: dict[int, dict] = defaultdict(lambda: {"cpu": [], "mem": []})
-        for snap in hist_snaps:
-            for g in json.loads(snap.data_json).get("vms", []) + json.loads(snap.data_json).get("containers", []):
+        for snap in hist_snaps_sorted:
+            snap_data = json.loads(snap.data_json)
+            for g in snap_data.get("vms", []) + snap_data.get("containers", []):
                 gid = g.get("id")
                 if gid is not None:
                     hist[gid]["cpu"].append(g.get("cpu_pct", 0))
                     hist[gid]["mem"].append(g.get("mem_used_gb", 0))
+
+        # Stddev floors to prevent micro-fluctuations from triggering anomalies
+        CPU_STD_FLOOR = 3.0    # minimum 3% stddev
+        MEM_STD_FLOOR = 0.3    # minimum 0.3 GB stddev
+        SUSTAINED_WINDOW = 5   # check last N snapshots
+        SUSTAINED_MIN = 3      # require at least this many above threshold
 
         for g in guests_now:
             gid = g.get("id")
@@ -271,33 +282,45 @@ async def dashboard(request: Request, db: AsyncSession = Depends(get_db)):
             mem_total = g.get("mem_total_gb", 0)
             cur_mem_pct = round(cur_mem / mem_total * 100, 1) if mem_total > 0 else 0
 
-            # ── Statistical anomalies (deviation from baseline) ──
-            if gid in hist and len(hist[gid]["cpu"]) >= 3:
-                mean_cpu = sum(hist[gid]["cpu"]) / len(hist[gid]["cpu"])
-                std_cpu = (sum((x - mean_cpu) ** 2 for x in hist[gid]["cpu"]) / len(hist[gid]["cpu"])) ** 0.5
-                # Anomaly: current significantly above mean + threshold × stddev
-                # Also require minimum absolute values to avoid noise
-                if cur_cpu > 10 and mean_cpu > 0 and std_cpu > 0:
-                    z_score = (cur_cpu - mean_cpu) / std_cpu
-                    if z_score >= anomaly_threshold:
+            # ── Statistical anomalies (sustained deviation from baseline) ──
+            if gid in hist and len(hist[gid]["cpu"]) >= 6:
+                all_cpu = hist[gid]["cpu"]
+                mean_cpu = sum(all_cpu) / len(all_cpu)
+                std_cpu = max((sum((x - mean_cpu) ** 2 for x in all_cpu) / len(all_cpu)) ** 0.5, CPU_STD_FLOOR)
+                if cur_cpu > 10 and mean_cpu > 0:
+                    # Check last N snapshots + current for sustained anomaly
+                    recent_values = all_cpu[-SUSTAINED_WINDOW:] + [cur_cpu]
+                    anomalous_count = sum(1 for v in recent_values if (v - mean_cpu) / std_cpu >= anomaly_threshold)
+                    if anomalous_count >= SUSTAINED_MIN:
+                        z_score = (cur_cpu - mean_cpu) / std_cpu
+                        # Severity: combines z-score magnitude with how sustained it is
+                        severity = round(z_score * (anomalous_count / len(recent_values)), 1)
                         anomalies.append({
                             "name": g["name"], "type": g["type"], "node": g["node"],
                             "cluster_name": cluster.name, "metric": "CPU",
                             "current": cur_cpu, "mean": round(mean_cpu, 1),
                             "factor": round(z_score, 1),
+                            "sustained": anomalous_count,
+                            "severity": severity,
                         })
 
-            if gid in hist and len(hist[gid]["mem"]) >= 3:
-                mean_mem = sum(hist[gid]["mem"]) / len(hist[gid]["mem"])
-                std_mem = (sum((x - mean_mem) ** 2 for x in hist[gid]["mem"]) / len(hist[gid]["mem"])) ** 0.5
-                if cur_mem > 0.5 and mean_mem > 0 and std_mem > 0:
-                    z_score = (cur_mem - mean_mem) / std_mem
-                    if z_score >= anomaly_threshold:
+            if gid in hist and len(hist[gid]["mem"]) >= 6:
+                all_mem = hist[gid]["mem"]
+                mean_mem = sum(all_mem) / len(all_mem)
+                std_mem = max((sum((x - mean_mem) ** 2 for x in all_mem) / len(all_mem)) ** 0.5, MEM_STD_FLOOR)
+                if cur_mem > 0.5 and mean_mem > 0:
+                    recent_values = all_mem[-SUSTAINED_WINDOW:] + [cur_mem]
+                    anomalous_count = sum(1 for v in recent_values if (v - mean_mem) / std_mem >= anomaly_threshold)
+                    if anomalous_count >= SUSTAINED_MIN:
+                        z_score = (cur_mem - mean_mem) / std_mem
+                        severity = round(z_score * (anomalous_count / len(recent_values)), 1)
                         anomalies.append({
                             "name": g["name"], "type": g["type"], "node": g["node"],
                             "cluster_name": cluster.name, "metric": "RAM",
                             "current": round(cur_mem, 2), "mean": round(mean_mem, 2),
                             "factor": round(z_score, 1),
+                            "sustained": anomalous_count,
+                            "severity": severity,
                         })
 
             # ── Absolute threshold warnings (persistent resource pressure) ──
@@ -328,7 +351,11 @@ async def dashboard(request: Request, db: AsyncSession = Depends(get_db)):
             "cluster_name": "Ping", "metric": "Latency",
             "current": pa["latency"], "mean": pa["threshold"], "factor": None,
             "host_id": pa["host_id"],
+            "sustained": None, "severity": 99,  # ping alarms always high priority
         })
+
+    # Sort anomalies by severity (highest first)
+    anomalies.sort(key=lambda a: a.get("severity", 0), reverse=True)
 
     running_guests = [g for g in all_guests if g.get("running")]
     top_cpu  = sorted(running_guests, key=lambda g: g.get("cpu_pct", 0), reverse=True)[:10]
