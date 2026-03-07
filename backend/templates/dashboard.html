@@ -377,6 +377,16 @@
       time += 0.016;
       ctx.clearRect(0, 0, W, H);
 
+      // Subtle orbit rings
+      ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+      ctx.lineWidth = 0.5;
+      for (let i = 1; i <= 5; i++) {
+        const rr = maxR * (i / 5);
+        ctx.beginPath();
+        ctx.arc(CX, CY, rr, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+
       // Core pulse
       const cp = 0.5 + Math.sin(time * 1.5) * 0.15;
       ctx.beginPath();

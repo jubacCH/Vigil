@@ -3,14 +3,11 @@
   <div class="grid-stack-item-content relative glass-card-static !p-0 flex flex-col" style="overflow:hidden!important">
     {{ widget_remove_btn() }}
     {% if host_stats %}
-    <div class="px-5 py-3 border-b border-white/[0.06] flex items-center justify-between cursor-pointer section-header shrink-0" data-section="nodemap">
+    <div class="px-5 py-3 border-b border-white/[0.06] flex items-center justify-between shrink-0">
       <h2 class="metric-label !text-[10px]">Gravity Well</h2>
-      <div class="flex items-center gap-3">
-        <span class="text-[--ng-text-muted] text-[10px] font-mono">{{ host_stats|length }} nodes</span>
-        <svg class="w-3.5 h-3.5 text-[--ng-text-muted] section-chevron transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-      </div>
+      <span class="text-[--ng-text-muted] text-[10px] font-mono">{{ host_stats|length }} nodes</span>
     </div>
-    <div class="section-body flex-1 min-h-0" id="nodemap-body">
+    <div class="flex-1 min-h-0" id="nodemap-body">
       <div class="hidden md:flex items-center justify-center relative overflow-hidden h-full" id="node-map-wrap"
            style="background:
              radial-gradient(ellipse 60% 50% at 30% 40%, rgba(60,40,140,0.18) 0%, transparent 70%),
