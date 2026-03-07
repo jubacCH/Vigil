@@ -2,9 +2,15 @@
 {% block title %}{{ config.name }} – {{ integration.display_name }}{% endblock %}
 
 {% block content %}
+<div class="p-8">
+
 <div class="flex items-center justify-between mb-6">
     <div class="flex items-center gap-3">
-        <a href="/integration/{{ integration.name }}" class="text-[--ng-text-secondary] hover:text-white transition">&larr;</a>
+        <a href="/integration/{{ integration.name }}" title="Back to {{ integration.display_name }}" class="p-1.5 rounded-lg text-slate-500 hover:text-white hover:bg-white/[0.06] transition-colors">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+            </svg>
+        </a>
         {% if integration.icon %}
         <img src="https://cdn.simpleicons.org/{{ integration.icon }}/94a3b8" class="w-6 h-6" alt="">
         {% endif %}
@@ -117,5 +123,7 @@
             </div>
         </form>
     </div>
+</div>
+
 </div>
 {% endblock %}

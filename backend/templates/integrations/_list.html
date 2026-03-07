@@ -2,6 +2,8 @@
 {% block title %}{{ integration.display_name }}{% endblock %}
 
 {% block content %}
+<div class="p-8">
+
 <div class="flex items-center justify-between mb-6">
     <h1 class="ng-heading text-2xl text-[--ng-text-primary]">{{ integration.display_name }}</h1>
     <button onclick="document.getElementById('addModal').classList.remove('hidden')"
@@ -128,5 +130,7 @@
             </div>
         </form>
     </div>
+</div>
+
 </div>
 {% endblock %}
