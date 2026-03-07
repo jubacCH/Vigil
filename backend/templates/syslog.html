@@ -181,11 +181,19 @@
               </span>
               {% endif %}
             </td>
-            <td class="px-4 py-2 text-[--ng-text-secondary] text-xs truncate max-w-[150px]">
-              {{ msg.hostname or '—' }}
+            <td class="px-4 py-2 text-xs truncate max-w-[150px]">
+              {% if msg.host_id %}
+              <a href="/ping/{{ msg.host_id }}?tab=syslog" class="text-[--ng-text-secondary] hover:text-white transition-colors underline decoration-dotted underline-offset-2">{{ msg.hostname or '—' }}</a>
+              {% else %}
+              <span class="text-[--ng-text-secondary]">{{ msg.hostname or '—' }}</span>
+              {% endif %}
             </td>
-            <td class="px-4 py-2 text-[--ng-text-muted] text-xs truncate max-w-[120px] font-mono">
-              {{ msg.source_ip }}
+            <td class="px-4 py-2 text-xs truncate max-w-[120px] font-mono">
+              {% if msg.host_id %}
+              <a href="/ping/{{ msg.host_id }}?tab=syslog" class="text-[--ng-text-muted] hover:text-white transition-colors">{{ msg.source_ip }}</a>
+              {% else %}
+              <span class="text-[--ng-text-muted]">{{ msg.source_ip }}</span>
+              {% endif %}
             </td>
             <td class="px-4 py-2 text-[--ng-text-muted] text-xs truncate max-w-[100px]">
               {% if msg.app_name %}
