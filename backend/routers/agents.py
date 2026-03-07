@@ -1,9 +1,11 @@
 """
 Agent router — register agents, receive metrics, serve UI + WebSocket live feed.
 """
+import io
 import json
 import logging
 import secrets
+import zipfile
 from datetime import datetime
 
 from fastapi import APIRouter, Request, WebSocket, WebSocketDisconnect
@@ -223,18 +225,39 @@ async def agent_download_enrolled(request: Request, agent_id: int, platform: str
     server_url = f"{request.url.scheme}://{request.url.netloc}"
     token = agent.token
 
-    # Pick the right template file
+    # Windows: ZIP with .exe + config.json
     if platform == "windows":
-        template_file = "static/nodeglow-agent-windows.py"
-        filename = "nodeglow-agent-windows.py"
-    else:
-        template_file = "static/nodeglow-agent-linux.py"
-        filename = "nodeglow-agent-linux.py"
+        import os
+        exe_path = os.path.join("static", "nodeglow-agent.exe")
+        if not os.path.exists(exe_path):
+            return JSONResponse({"error": "Windows agent exe not found"}, status_code=404)
+
+        config_json = json.dumps({
+            "server": server_url,
+            "token": token,
+            "interval": 30,
+        }, indent=2)
+
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+            zf.write(exe_path, "nodeglow-agent.exe")
+            zf.writestr("config.json", config_json)
+        buf.seek(0)
+
+        from fastapi.responses import Response
+        return Response(
+            content=buf.getvalue(),
+            media_type="application/zip",
+            headers={"Content-Disposition": f'attachment; filename="nodeglow-agent-{agent.name}.zip"'},
+        )
+
+    # Linux: Python script with enrollment baked in
+    template_file = "static/nodeglow-agent-linux.py"
+    filename = "nodeglow-agent-linux.py"
 
     with open(template_file) as f:
         script = f.read()
 
-    # Inject auto-enrollment: add config block right after __version__ line
     enrollment_block = f'''
 
 # ── Auto-enrolled configuration (baked in at download) ──────────────────────
@@ -245,8 +268,6 @@ _ENROLLED_TOKEN  = "{token}"
         f'__version__ = "1.1.0"\n',
         f'__version__ = "1.1.0"\n{enrollment_block}',
     )
-
-    # Patch the defaults in argparse to use enrolled values
     script = script.replace(
         """default=os.environ.get("NODEGLOW_SERVER", "")""",
         """default=os.environ.get("NODEGLOW_SERVER", _ENROLLED_SERVER)""",
@@ -267,10 +288,10 @@ _ENROLLED_TOKEN  = "{token}"
 # Generic download (without enrollment)
 @router.get("/agents/download/{platform}")
 async def agent_download_generic(request: Request, platform: str):
-    """Download generic agent script (no token baked in)."""
+    """Download generic agent script/exe (no token baked in)."""
     if platform == "windows":
-        return FileResponse("static/nodeglow-agent-windows.py",
-                            filename="nodeglow-agent-windows.py", media_type="text/x-python")
+        return FileResponse("static/nodeglow-agent.exe",
+                            filename="nodeglow-agent.exe", media_type="application/octet-stream")
     return FileResponse("static/nodeglow-agent-linux.py",
                         filename="nodeglow-agent-linux.py", media_type="text/x-python")
 

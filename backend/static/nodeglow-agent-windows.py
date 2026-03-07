@@ -323,13 +323,33 @@ def install_task(server, token, interval):
         sys.exit(1)
 
 
+# ── Config file support ───────────────────────────────────────────────────────
+
+def _load_config_file():
+    """Load config.json from next to the executable/script."""
+    if getattr(sys, 'frozen', False):
+        base_dir = os.path.dirname(sys.executable)
+    else:
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+    config_path = os.path.join(base_dir, "config.json")
+    if os.path.exists(config_path):
+        try:
+            with open(config_path) as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {}
+
+_file_config = _load_config_file()
+
+
 # ── Main ─────────────────────────────────────────────────────────────────────
 
 def main():
     parser = argparse.ArgumentParser(description="Nodeglow Agent for Windows")
-    parser.add_argument("--server", "-s", default=os.environ.get("NODEGLOW_SERVER", ""))
-    parser.add_argument("--token", "-t", default=os.environ.get("NODEGLOW_TOKEN", ""))
-    parser.add_argument("--interval", "-i", type=int, default=int(os.environ.get("NODEGLOW_INTERVAL", "30")))
+    parser.add_argument("--server", "-s", default=os.environ.get("NODEGLOW_SERVER", _file_config.get("server", "")))
+    parser.add_argument("--token", "-t", default=os.environ.get("NODEGLOW_TOKEN", _file_config.get("token", "")))
+    parser.add_argument("--interval", "-i", type=int, default=int(os.environ.get("NODEGLOW_INTERVAL", str(_file_config.get("interval", 30)))))
     parser.add_argument("--once", action="store_true", help="Report once and exit")
     parser.add_argument("--dry-run", action="store_true", help="Print metrics, don't send")
     parser.add_argument("--install", action="store_true", help="Install as scheduled task")
