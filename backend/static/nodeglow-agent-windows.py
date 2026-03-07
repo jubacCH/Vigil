@@ -33,7 +33,7 @@ import time
 import urllib.error
 import urllib.request
 
-__version__ = "1.2.0"
+__version__ = "1.3.0"
 
 
 # ── WMI helpers via PowerShell ───────────────────────────────────────────────
@@ -224,6 +224,423 @@ def get_top_processes(n=10):
     return procs
 
 
+def get_os_info():
+    """Detailed OS information."""
+    try:
+        data = _ps_json(
+            "Get-CimInstance Win32_OperatingSystem | "
+            "Select-Object Caption, Version, BuildNumber, OSArchitecture, "
+            "InstallDate, LastBootUpTime, RegisteredUser, Organization"
+        )
+        if data:
+            info = {
+                "os_name": data.get("Caption", "").strip(),
+                "os_version": data.get("Version", ""),
+                "build": data.get("BuildNumber", ""),
+                "os_arch": data.get("OSArchitecture", ""),
+            }
+            if data.get("RegisteredUser"):
+                info["registered_user"] = data["RegisteredUser"]
+            return info
+    except Exception:
+        pass
+    return None
+
+
+def get_cpu_info():
+    """CPU model, cores, speed."""
+    try:
+        data = _ps_json(
+            "Get-CimInstance Win32_Processor | Select-Object -First 1 "
+            "Name, NumberOfCores, NumberOfLogicalProcessors, MaxClockSpeed, "
+            "CurrentClockSpeed, L2CacheSize, L3CacheSize"
+        )
+        if data:
+            return {
+                "model": data.get("Name", "").strip(),
+                "cores": data.get("NumberOfCores", 0),
+                "threads": data.get("NumberOfLogicalProcessors", 0),
+                "max_mhz": data.get("MaxClockSpeed", 0),
+                "current_mhz": data.get("CurrentClockSpeed", 0),
+                "l2_cache_kb": data.get("L2CacheSize", 0),
+                "l3_cache_kb": data.get("L3CacheSize", 0),
+            }
+    except Exception:
+        pass
+    return None
+
+
+def get_swap():
+    """Page file (swap) usage."""
+    try:
+        data = _ps_json(
+            "Get-CimInstance Win32_PageFileUsage | "
+            "Select-Object Name, AllocatedBaseSize, CurrentUsage"
+        )
+        if data is None:
+            return None
+        if isinstance(data, dict):
+            data = [data]
+        total_mb = sum(d.get("AllocatedBaseSize", 0) for d in data)
+        used_mb = sum(d.get("CurrentUsage", 0) for d in data)
+        if total_mb > 0:
+            return {
+                "total_mb": total_mb,
+                "used_mb": used_mb,
+                "pct": round(used_mb / total_mb * 100, 1),
+            }
+    except Exception:
+        pass
+    return None
+
+
+def get_ip_addresses():
+    """Network adapter IP addresses and MAC."""
+    try:
+        data = _ps_json(
+            "Get-CimInstance Win32_NetworkAdapterConfiguration -Filter 'IPEnabled=True' | "
+            "Select-Object Description, IPAddress, MACAddress, DefaultIPGateway, DNSServerSearchOrder"
+        )
+        if data is None:
+            return None
+        if isinstance(data, dict):
+            data = [data]
+        adapters = []
+        for a in data:
+            ips = a.get("IPAddress", []) or []
+            gw = a.get("DefaultIPGateway", []) or []
+            dns = a.get("DNSServerSearchOrder", []) or []
+            adapters.append({
+                "name": a.get("Description", "?"),
+                "ips": ips if isinstance(ips, list) else [ips],
+                "mac": a.get("MACAddress", ""),
+                "gateway": gw if isinstance(gw, list) else [gw],
+                "dns": dns if isinstance(dns, list) else [dns],
+            })
+        return adapters
+    except Exception:
+        pass
+    return None
+
+
+def get_services():
+    """Running Windows services (auto-start only to keep it relevant)."""
+    services = []
+    try:
+        data = _ps_json(
+            "Get-CimInstance Win32_Service -Filter \"StartMode='Auto'\" | "
+            "Select-Object Name, DisplayName, State, ProcessId"
+        )
+        if data is None:
+            return services
+        if isinstance(data, dict):
+            data = [data]
+        for s in data:
+            services.append({
+                "name": s.get("Name", ""),
+                "display": s.get("DisplayName", ""),
+                "state": s.get("State", ""),
+                "pid": s.get("ProcessId", 0),
+            })
+    except Exception:
+        pass
+    return services
+
+
+def get_listening_ports():
+    """TCP ports in LISTEN state."""
+    ports = []
+    try:
+        data = _ps_json(
+            "Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue | "
+            "Select-Object LocalAddress, LocalPort, OwningProcess | "
+            "Sort-Object LocalPort -Unique"
+        )
+        if data is None:
+            return ports
+        if isinstance(data, dict):
+            data = [data]
+        for p in data:
+            ports.append({
+                "addr": p.get("LocalAddress", ""),
+                "port": p.get("LocalPort", 0),
+                "pid": p.get("OwningProcess", 0),
+            })
+    except Exception:
+        pass
+    return ports
+
+
+def get_gpu():
+    """GPU info via CIM (works for all GPUs)."""
+    gpus = []
+    try:
+        data = _ps_json(
+            "Get-CimInstance Win32_VideoController | "
+            "Select-Object Name, AdapterRAM, DriverVersion, CurrentRefreshRate, "
+            "VideoModeDescription, Status"
+        )
+        if data is None:
+            return gpus
+        if isinstance(data, dict):
+            data = [data]
+        for g in data:
+            vram = g.get("AdapterRAM", 0)
+            gpus.append({
+                "name": g.get("Name", "").strip(),
+                "vram_mb": round(vram / 1048576, 0) if vram else 0,
+                "driver": g.get("DriverVersion", ""),
+                "resolution": g.get("VideoModeDescription", ""),
+                "status": g.get("Status", ""),
+            })
+    except Exception:
+        pass
+    # Try nvidia-smi for utilization
+    try:
+        out = subprocess.check_output(
+            ["nvidia-smi", "--query-gpu=utilization.gpu,utilization.memory,temperature.gpu,memory.used,memory.total",
+             "--format=csv,noheader,nounits"],
+            text=True, timeout=5, stderr=subprocess.DEVNULL, creationflags=0x08000000,
+        )
+        for i, line in enumerate(out.strip().splitlines()):
+            parts = [x.strip() for x in line.split(",")]
+            if len(parts) >= 5 and i < len(gpus):
+                gpus[i]["gpu_pct"] = float(parts[0])
+                gpus[i]["vram_pct"] = float(parts[1])
+                gpus[i]["temp_c"] = float(parts[2])
+                gpus[i]["vram_used_mb"] = float(parts[3])
+                gpus[i]["vram_total_mb"] = float(parts[4])
+    except Exception:
+        pass
+    return gpus
+
+
+def get_logged_in_users():
+    """Currently logged-in users."""
+    users = []
+    try:
+        data = _ps_json(
+            "Get-CimInstance Win32_LogonSession -Filter \"LogonType=2 or LogonType=10\" | "
+            "ForEach-Object { $s=$_; Get-CimAssociatedInstance -InputObject $s -ResultClassName Win32_Account 2>$null | "
+            "Select-Object Name, @{N='LogonType';E={$s.LogonType}}, @{N='StartTime';E={$s.StartTime}} } | "
+            "Select-Object -Unique Name, LogonType, StartTime"
+        )
+        if data is None:
+            return users
+        if isinstance(data, dict):
+            data = [data]
+        for u in data:
+            logon_type = u.get("LogonType", 0)
+            users.append({
+                "name": u.get("Name", ""),
+                "type": "console" if logon_type == 2 else "rdp" if logon_type == 10 else str(logon_type),
+            })
+    except Exception:
+        pass
+    # Fallback: simple query user
+    if not users:
+        try:
+            out = subprocess.check_output(["query", "user"], text=True, timeout=5,
+                                           stderr=subprocess.DEVNULL, creationflags=0x08000000)
+            for line in out.strip().splitlines()[1:]:
+                parts = line.split()
+                if parts:
+                    name = parts[0].lstrip(">")
+                    users.append({"name": name, "type": "session"})
+        except Exception:
+            pass
+    return users
+
+
+def get_pending_updates():
+    """Check for pending Windows Updates (can be slow, max 15s timeout)."""
+    try:
+        raw = _ps(
+            "$s = New-Object -ComObject Microsoft.Update.Session; "
+            "$u = $s.CreateUpdateSearcher(); "
+            "$r = $u.Search('IsInstalled=0 and IsHidden=0'); "
+            "$r.Updates | Select-Object -First 20 Title, "
+            "@{N='KB';E={($_.KBArticleIDs -join ',')}}, "
+            "@{N='Severity';E={$_.MsrcSeverity}} | ConvertTo-Json -Compress",
+            timeout=15,
+        )
+        if not raw:
+            return {"count": 0, "updates": []}
+        data = json.loads(raw)
+        if isinstance(data, dict):
+            data = [data]
+        updates = []
+        for u in data:
+            updates.append({
+                "title": u.get("Title", "")[:120],
+                "kb": u.get("KB", ""),
+                "severity": u.get("Severity", ""),
+            })
+        return {"count": len(updates), "updates": updates}
+    except Exception:
+        pass
+    return None
+
+
+def get_docker_containers():
+    """List running Docker containers if docker is available."""
+    containers = []
+    try:
+        out = subprocess.check_output(
+            ["docker", "ps", "--format", "{{.Names}}\t{{.Status}}\t{{.Image}}"],
+            stderr=subprocess.DEVNULL, text=True, timeout=5,
+            creationflags=0x08000000,
+        )
+        for line in out.strip().splitlines():
+            parts = line.split("\t")
+            if len(parts) >= 3:
+                containers.append({"name": parts[0], "status": parts[1], "image": parts[2]})
+    except Exception:
+        pass
+    return containers
+
+
+def get_installed_software():
+    """Top installed software (by size, max 20)."""
+    try:
+        data = _ps_json(
+            "Get-ItemProperty HKLM:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\* | "
+            "Where-Object { $_.DisplayName -and $_.EstimatedSize } | "
+            "Sort-Object EstimatedSize -Descending | "
+            "Select-Object -First 20 DisplayName, DisplayVersion, Publisher, "
+            "@{N='SizeMB';E={[math]::Round($_.EstimatedSize/1024,1)}}",
+            timeout=10,
+        )
+        if data is None:
+            return []
+        if isinstance(data, dict):
+            data = [data]
+        return [{"name": s.get("DisplayName", ""), "version": s.get("DisplayVersion", ""),
+                 "publisher": s.get("Publisher", ""), "size_mb": s.get("SizeMB", 0)} for s in data]
+    except Exception:
+        return []
+
+
+def get_bios_info():
+    """BIOS / firmware info."""
+    try:
+        data = _ps_json(
+            "Get-CimInstance Win32_BIOS | Select-Object Manufacturer, Name, Version, SerialNumber, ReleaseDate"
+        )
+        if data:
+            return {
+                "manufacturer": data.get("Manufacturer", "").strip(),
+                "name": data.get("Name", "").strip(),
+                "version": data.get("Version", "").strip(),
+                "serial": data.get("SerialNumber", "").strip(),
+            }
+    except Exception:
+        pass
+    return None
+
+
+def get_motherboard():
+    """Motherboard info."""
+    try:
+        data = _ps_json(
+            "Get-CimInstance Win32_BaseBoard | Select-Object Manufacturer, Product, SerialNumber, Version"
+        )
+        if data:
+            return {
+                "manufacturer": data.get("Manufacturer", "").strip(),
+                "product": data.get("Product", "").strip(),
+                "serial": data.get("SerialNumber", "").strip(),
+            }
+    except Exception:
+        pass
+    return None
+
+
+def get_ram_sticks():
+    """Physical RAM modules."""
+    try:
+        data = _ps_json(
+            "Get-CimInstance Win32_PhysicalMemory | "
+            "Select-Object Manufacturer, PartNumber, Speed, Capacity, DeviceLocator"
+        )
+        if data is None:
+            return []
+        if isinstance(data, dict):
+            data = [data]
+        sticks = []
+        for m in data:
+            cap = m.get("Capacity", 0)
+            sticks.append({
+                "slot": m.get("DeviceLocator", "").strip(),
+                "manufacturer": m.get("Manufacturer", "").strip(),
+                "part": m.get("PartNumber", "").strip(),
+                "speed_mhz": m.get("Speed", 0),
+                "size_gb": round(cap / 1073741824, 1) if cap else 0,
+            })
+        return sticks
+    except Exception:
+        return []
+
+
+def get_firewall_status():
+    """Windows Firewall profile status."""
+    try:
+        data = _ps_json(
+            "Get-NetFirewallProfile | Select-Object Name, Enabled"
+        )
+        if data is None:
+            return None
+        if isinstance(data, dict):
+            data = [data]
+        return {p.get("Name", ""): p.get("Enabled", False) for p in data}
+    except Exception:
+        return None
+
+
+# ── Collect all ──────────────────────────────────────────────────────────────
+
+# Static info collected once (doesn't change between reports)
+_static_info = None
+_static_info_time = 0
+
+
+def _get_static_info():
+    """Collect slow-changing system info (cached for 1 hour)."""
+    global _static_info, _static_info_time
+    if _static_info and (time.time() - _static_info_time) < 3600:
+        return _static_info
+
+    info = {}
+
+    os_info = get_os_info()
+    if os_info:
+        info["os_info"] = os_info
+
+    cpu_info = get_cpu_info()
+    if cpu_info:
+        info["cpu_info"] = cpu_info
+
+    bios = get_bios_info()
+    if bios:
+        info["bios"] = bios
+
+    board = get_motherboard()
+    if board:
+        info["motherboard"] = board
+
+    ram = get_ram_sticks()
+    if ram:
+        info["ram_sticks"] = ram
+
+    software = get_installed_software()
+    if software:
+        info["installed_software"] = software
+
+    _static_info = info
+    _static_info_time = time.time()
+    return info
+
+
 def collect_all():
     """Collect all system metrics."""
     data = {
@@ -235,6 +652,7 @@ def collect_all():
         "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
     }
 
+    # Dynamic metrics (every report)
     cpu = get_cpu_percent()
     if cpu is not None:
         data["cpu_pct"] = cpu
@@ -242,6 +660,10 @@ def collect_all():
     mem = get_memory()
     if mem:
         data["memory"] = mem
+
+    swap = get_swap()
+    if swap:
+        data["swap"] = swap
 
     disks = get_disks()
     if disks:
@@ -259,9 +681,50 @@ def collect_all():
     if temp is not None:
         data["cpu_temp"] = temp
 
-    procs = get_top_processes(8)
+    procs = get_top_processes(10)
     if procs:
         data["processes"] = procs
+
+    ips = get_ip_addresses()
+    if ips:
+        data["network_adapters"] = ips
+
+    services = get_services()
+    if services:
+        data["services"] = services
+
+    ports = get_listening_ports()
+    if ports:
+        data["listening_ports"] = ports
+
+    gpus = get_gpu()
+    if gpus:
+        data["gpus"] = gpus
+
+    users = get_logged_in_users()
+    if users:
+        data["logged_in_users"] = users
+
+    containers = get_docker_containers()
+    if containers:
+        data["docker_containers"] = containers
+
+    firewall = get_firewall_status()
+    if firewall:
+        data["firewall"] = firewall
+
+    # Static info (cached, refreshed hourly)
+    data.update(_get_static_info())
+
+    # Pending updates (slow, only every 30 min)
+    now = time.time()
+    if not hasattr(collect_all, '_update_time') or (now - collect_all._update_time) > 1800:
+        updates = get_pending_updates()
+        if updates:
+            collect_all._update_result = updates
+        collect_all._update_time = now
+    if hasattr(collect_all, '_update_result') and collect_all._update_result:
+        data["pending_updates"] = collect_all._update_result
 
     return data
 
