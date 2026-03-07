@@ -76,11 +76,11 @@
 <div class="grid gap-4 lg:grid-cols-2 mb-6">
     <div class="glass-card p-4">
         <h3 class="metric-label !text-[10px] mb-3">CPU & Memory</h3>
-        <canvas id="chart-cpu-mem" height="160"></canvas>
+        <div style="position:relative; height:160px"><canvas id="chart-cpu-mem"></canvas></div>
     </div>
     <div class="glass-card p-4">
         <h3 class="metric-label !text-[10px] mb-3">Load Average</h3>
-        <canvas id="chart-load" height="160"></canvas>
+        <div style="position:relative; height:160px"><canvas id="chart-load"></canvas></div>
     </div>
 </div>
 
@@ -137,10 +137,10 @@
             {% for p in processes %}
             <tr class="border-b border-white/[0.03] hover:bg-white/[0.02]">
                 <td class="px-4 py-2 text-[--ng-text-primary] font-mono text-xs truncate max-w-[250px]">{{ p.cmd }}</td>
-                <td class="px-4 py-2 text-[--ng-text-muted] text-xs">{{ p.user }}</td>
+                <td class="px-4 py-2 text-[--ng-text-muted] text-xs">{{ p.get('user', '—') }}</td>
                 <td class="px-4 py-2 text-right text-xs font-mono text-[--ng-text-muted]">{{ p.pid }}</td>
-                <td class="px-4 py-2 text-right text-xs font-mono {% if p.cpu > 50 %}text-ng-warning{% else %}text-[--ng-text-secondary]{% endif %}">{{ p.cpu }}%</td>
-                <td class="px-4 py-2 text-right text-xs font-mono text-[--ng-text-secondary]">{{ p.mem }}%</td>
+                <td class="px-4 py-2 text-right text-xs font-mono {% if p.get('cpu', 0) > 50 %}text-ng-warning{% else %}text-[--ng-text-secondary]{% endif %}">{{ p.get('cpu', '—') }}{% if p.get('cpu') is not none %}%{% endif %}</td>
+                <td class="px-4 py-2 text-right text-xs font-mono text-[--ng-text-secondary]">{% if p.get('mem') is not none %}{{ p.mem }}%{% elif p.get('mem_mb') is not none %}{{ p.mem_mb }}M{% else %}—{% endif %}</td>
             </tr>
             {% endfor %}
         </tbody>
