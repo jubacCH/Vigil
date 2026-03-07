@@ -443,11 +443,23 @@
           document.title = doc.title;
           history.pushState({url}, '', url);
 
+          // Clear any intervals/timeouts from previous page scripts
+          if (window._pageIntervals) window._pageIntervals.forEach(clearInterval);
+          if (window._pageTimeouts) window._pageTimeouts.forEach(clearTimeout);
+          window._pageIntervals = [];
+          window._pageTimeouts = [];
+
           function execScripts(container) {
             container.querySelectorAll('script').forEach(s => {
-              const ns = document.createElement('script');
-              if (s.src) ns.src = s.src; else ns.textContent = s.textContent;
-              s.replaceWith(ns);
+              if (s.src) {
+                const ns = document.createElement('script');
+                ns.src = s.src;
+                s.replaceWith(ns);
+              } else {
+                // Use Function() to execute in its own scope — avoids const/let redeclaration errors
+                try { Function(s.textContent)(); } catch(e) { console.error('[SPA] script error:', e); }
+                s.remove();
+              }
             });
           }
           execScripts(document.querySelector('main'));
@@ -455,9 +467,13 @@
             const ps = document.getElementById('page-scripts');
             ps.innerHTML = '';
             newScripts.querySelectorAll('script').forEach(s => {
-              const ns = document.createElement('script');
-              if (s.src) ns.src = s.src; else ns.textContent = s.textContent;
-              ps.appendChild(ns);
+              if (s.src) {
+                const ns = document.createElement('script');
+                ns.src = s.src;
+                ps.appendChild(ns);
+              } else {
+                try { Function(s.textContent)(); } catch(e) { console.error('[SPA] script error:', e); }
+              }
             });
           }
 
