@@ -109,6 +109,36 @@ async def run_ping_checks():
     if not active_hosts:
         return
 
+    # Separate agent-sourced hosts — they use agent heartbeat, not ICMP
+    agent_hosts = [h for h in active_hosts if h.source == "agent"]
+    ping_hosts = [h for h in active_hosts if h.source != "agent"]
+
+    # Handle agent-sourced hosts via agent last_seen
+    if agent_hosts:
+        from models.agent import Agent
+        from sqlalchemy import func as sa_func
+        async with AsyncSessionLocal() as db:
+            for host in agent_hosts:
+                # Find matching agent by name (PingHost.name == Agent.hostname)
+                agent_r = await db.execute(
+                    select(Agent).where(sa_func.lower(Agent.hostname) == host.name.lower())
+                )
+                agent = agent_r.scalar_one_or_none()
+                success = False
+                if agent and agent.last_seen:
+                    success = (datetime.utcnow() - agent.last_seen).total_seconds() < 120
+                db.add(PingResult(
+                    host_id=host.id,
+                    timestamp=datetime.utcnow(),
+                    success=success,
+                    latency_ms=0 if success else None,
+                ))
+                from services.websocket import broadcast_ping_update
+                _asyncio.create_task(broadcast_ping_update(host.id, host.name, success, 0 if success else None))
+            await db.commit()
+
+    active_hosts = ping_hosts
+
     # Load previous results for state-change detection
     async with AsyncSessionLocal() as db:
         from sqlalchemy import func as sa_func
