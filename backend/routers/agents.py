@@ -59,9 +59,10 @@ async def agent_enroll(request: Request):
     client_ip = request.client.host if request.client else None
 
     async with AsyncSessionLocal() as db:
-        # Check if agent with this hostname already exists → return existing token
-        result = await db.execute(select(Agent).where(Agent.hostname == hostname))
-        existing = result.scalar_one_or_none()
+        # Check if agent with this hostname already exists → return existing token (case-insensitive)
+        from sqlalchemy import func as sa_func
+        result = await db.execute(select(Agent).where(sa_func.lower(Agent.hostname) == hostname.lower()))
+        existing = result.scalars().first()
         if existing:
             existing.platform = plat or existing.platform
             existing.arch = arch or existing.arch
@@ -76,13 +77,12 @@ async def agent_enroll(request: Request):
 
         # Auto-create PingHost using client IP (more reliable for ICMP)
         ping_hostname = client_ip or hostname
-        from sqlalchemy import func as sa_func
         ping_result = await db.execute(
             select(PingHost).where(
                 sa_func.lower(PingHost.hostname).in_([hostname.lower(), ping_hostname.lower()])
             )
         )
-        if not ping_result.scalar_one_or_none():
+        if not ping_result.scalars().first():
             db.add(PingHost(
                 name=hostname,
                 hostname=ping_hostname,

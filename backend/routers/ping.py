@@ -477,7 +477,7 @@ async def ping_detail(host_id: int, request: Request, db: AsyncSession = Depends
             break
         agent_obj = (await db.execute(
             select(Agent).where(func.lower(Agent.hostname) == _match)
-        )).scalar_one_or_none()
+        )).scalars().first()
     if agent_obj:
         snaps_q = await db.execute(
             select(AgentSnapshot)
