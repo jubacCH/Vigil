@@ -380,13 +380,15 @@ WantedBy=multi-user.target
 UNIT
 
 echo "  [6/6] Testing connection..."
-TEST_OUTPUT=$(python3 "$INSTALL_DIR/nodeglow-agent.py" --once 2>&1)
-if echo "$TEST_OUTPUT" | grep -q "OK"; then
+TEST_RESP=$(curl -sSL -X POST "$SERVER/api/agent/report" \
+    -H "Content-Type: application/json" \
+    -H "Authorization: Bearer $TOKEN" \
+    -d "{{\\"hostname\\": \\"$HOSTNAME\\", \\"platform\\": \\"Linux\\", \\"agent_version\\": \\"test\\"}}" 2>&1)
+if echo "$TEST_RESP" | grep -q '"ok"'; then
     echo "  Connection test: SUCCESS"
-    echo "  $TEST_OUTPUT" | grep "\\[nodeglow-agent\\]" | tail -1 | sed 's/^/  /'
 else
     echo "  Connection test: FAILED"
-    echo "  $TEST_OUTPUT" | tail -3 | sed 's/^/  /'
+    echo "  $TEST_RESP" | head -3 | sed 's/^/  /'
     echo ""
     echo "  The agent will retry when the service starts."
 fi
@@ -473,17 +475,16 @@ $Principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccou
 
 Write-Host "  [6/6] Testing connection..."
 try {{
-    $testOutput = & "$InstallDir\\nodeglow-agent.exe" --server $Server --token $Token --once 2>&1 | Out-String
-    if ($testOutput -match "OK") {{
+    $testBody = @{{ hostname = $Hostname; platform = "Windows"; agent_version = "test" }} | ConvertTo-Json
+    $testResp = Invoke-RestMethod -Uri "$Server/api/agent/report" -Method Post -Body $testBody -ContentType "application/json" -Headers @{{ Authorization = "Bearer $Token" }} -TimeoutSec 10
+    if ($testResp.ok) {{
         Write-Host "  Connection test: SUCCESS" -ForegroundColor Green
-        $testOutput -split "`n" | Where-Object {{ $_ -match "\\[nodeglow-agent\\].*OK" }} | Select-Object -Last 1 | ForEach-Object {{ Write-Host "  $_" -ForegroundColor Gray }}
     }} else {{
-        Write-Host "  Connection test: FAILED" -ForegroundColor Yellow
-        $testOutput -split "`n" | Where-Object {{ $_.Trim() }} | Select-Object -Last 3 | ForEach-Object {{ Write-Host "  $_" -ForegroundColor Yellow }}
-        Write-Host "  The agent will retry when the task starts." -ForegroundColor Yellow
+        Write-Host "  Connection test: FAILED (unexpected response)" -ForegroundColor Yellow
     }}
 }} catch {{
-    Write-Host "  Connection test: ERROR - $($_.Exception.Message)" -ForegroundColor Yellow
+    Write-Host "  Connection test: FAILED - $($_.Exception.Message)" -ForegroundColor Yellow
+    Write-Host "  The agent will retry when the task starts." -ForegroundColor Yellow
 }}
 
 Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false -ErrorAction SilentlyContinue

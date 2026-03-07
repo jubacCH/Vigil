@@ -189,7 +189,7 @@
 <script>
 (function() {
     // Chart data from server-rendered snapshots
-    const snapshots = {{ snapshots | tojson(indent=None) if snapshots else '[]' }};
+    // Snapshot data built via Jinja loop below
 
     // Build time labels and data arrays
     const labels = [];
