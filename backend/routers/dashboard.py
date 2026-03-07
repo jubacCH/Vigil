@@ -173,14 +173,39 @@ async def dashboard(request: Request, db: AsyncSession = Depends(get_db)):
                 "host_id": host.id,
             })
 
+        # Health score for gravity well (0.0 = perfect, 1.0 = critical)
+        _online = latest_row.success if latest_row else None
+        _lat = latest_row.latency_ms if latest_row else None
+        if _online is False:
+            health_score = 1.0
+        elif host.maintenance:
+            health_score = 0.5
+        elif _online is None:
+            health_score = 0.8
+        else:
+            score = 0.0
+            # Latency vs threshold (weight 0.4)
+            if _lat is not None and effective_threshold:
+                score += min(_lat / effective_threshold, 2.0) * 0.2
+            elif _lat is not None:
+                score += min(_lat / 100.0, 1.0) * 0.2
+            # Uptime deficit (weight 0.3): 100% → 0, 95% → 0.15, 90% → 0.3
+            score += (1 - uptime_pct / 100.0) * 0.3
+            # Packet loss from sparkline (weight 0.3)
+            if sparkline:
+                losses = sum(1 for v in sparkline if v is None)
+                score += (losses / len(sparkline)) * 0.3
+            health_score = round(min(score, 1.0), 3)
+
         host_stats.append({
             "host": host,
-            "online": latest_row.success if latest_row else None,
-            "latency": latest_row.latency_ms if latest_row else None,
+            "online": _online,
+            "latency": _lat,
             "uptime_pct": uptime_pct,
             "avg_latency": avg_latency,
             "last_check": latest_row.timestamp if latest_row else None,
             "sparkline": sparkline,
+            "health_score": health_score,
         })
 
     # Exclude maintenance hosts from counts and Top-10

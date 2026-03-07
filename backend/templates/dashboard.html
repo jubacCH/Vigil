@@ -257,6 +257,7 @@
       uptimePct: {{ s.uptime_pct if s.uptime_pct is not none else 'null' }},
       sparkline: [{% if s.sparkline %}{% for v in s.sparkline %}{{ 'null' if v is none else v }}{% if not loop.last %},{% endif %}{% endfor %}{% endif %}],
       parentId: {{ topology.get(s.host.id) or 'null' }},
+      healthScore: {{ s.health_score }},
     },
     {% endfor %}
   ];
@@ -330,19 +331,12 @@
       const spreadMul = n <= 10 ? 0.7 : n <= 30 ? 0.85 : 1.0;
 
       _gravityParticles = hosts.map((h, i) => {
-        let targetR;
-        if (h.online === false) {
-          targetR = (0.75 + Math.random() * 0.2) * spreadMul;
-        } else if (h.maintenance) {
-          targetR = (0.45 + Math.random() * 0.2) * spreadMul;
-        } else {
-          const l = Math.min(h.latency || 1, 200);
-          targetR = (0.1 + (Math.log(l + 1) / Math.log(201)) * 0.6) * spreadMul;
-        }
+        // healthScore 0→1 maps to orbit radius: healthy=close, critical=far
+        const hs = h.healthScore;
+        const targetR = (0.08 + hs * 0.85 + (Math.random() - 0.5) * 0.06) * spreadMul;
         const angle = (i / n) * Math.PI * 2 + (Math.random() - 0.5) * 0.5;
-        const speed = h.online === false
-          ? 0.0002 + Math.random() * 0.0002
-          : 0.0006 + (1 / Math.max(1, h.latency || 1)) * 0.0006;
+        // Healthy hosts orbit faster, critical/offline drift slowly
+        const speed = 0.0003 + (1 - hs) * 0.0008;
         return {
           host: h, angle, radius: targetR, targetRadius: targetR,
           speed: speed * (Math.random() > 0.5 ? 1 : -1),
