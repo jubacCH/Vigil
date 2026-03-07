@@ -379,6 +379,18 @@ Environment=PYTHONUNBUFFERED=1
 WantedBy=multi-user.target
 UNIT
 
+echo "  [6/6] Testing connection..."
+TEST_OUTPUT=$(python3 "$INSTALL_DIR/nodeglow-agent.py" --once 2>&1)
+if echo "$TEST_OUTPUT" | grep -q "OK"; then
+    echo "  Connection test: SUCCESS"
+    echo "  $TEST_OUTPUT" | grep "\\[nodeglow-agent\\]" | tail -1 | sed 's/^/  /'
+else
+    echo "  Connection test: FAILED"
+    echo "  $TEST_OUTPUT" | tail -3 | sed 's/^/  /'
+    echo ""
+    echo "  The agent will retry when the service starts."
+fi
+
 systemctl daemon-reload
 systemctl enable ${{SERVICE_NAME}} --quiet
 systemctl restart ${{SERVICE_NAME}}
@@ -458,6 +470,21 @@ $Action = New-ScheduledTaskAction -Execute "$InstallDir\\nodeglow-agent.exe" -Wo
 $Trigger = New-ScheduledTaskTrigger -AtStartup
 $Settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1) -ExecutionTimeLimit (New-TimeSpan -Days 365)
 $Principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount -RunLevel Highest
+
+Write-Host "  [6/6] Testing connection..."
+try {{
+    $testOutput = & "$InstallDir\\nodeglow-agent.exe" --once 2>&1 | Out-String
+    if ($testOutput -match "OK") {{
+        Write-Host "  Connection test: SUCCESS" -ForegroundColor Green
+        $testOutput -split "`n" | Where-Object {{ $_ -match "\\[nodeglow-agent\\].*OK" }} | Select-Object -Last 1 | ForEach-Object {{ Write-Host "  $_" -ForegroundColor Gray }}
+    }} else {{
+        Write-Host "  Connection test: FAILED" -ForegroundColor Yellow
+        $testOutput -split "`n" | Select-Object -Last 3 | ForEach-Object {{ Write-Host "  $_" -ForegroundColor Yellow }}
+        Write-Host "  The agent will retry when the task starts." -ForegroundColor Yellow
+    }}
+}} catch {{
+    Write-Host "  Connection test: ERROR - $($_.Exception.Message)" -ForegroundColor Yellow
+}}
 
 Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false -ErrorAction SilentlyContinue
 Register-ScheduledTask -TaskName $TaskName -Action $Action -Trigger $Trigger -Settings $Settings -Principal $Principal -Description "Nodeglow Monitoring Agent" | Out-Null
