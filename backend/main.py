@@ -83,8 +83,8 @@ async def _get_nav_counts(db) -> dict:
 @app.middleware("http")
 async def inject_globals(request: Request, call_next):
     if request.url.path.startswith("/static/") or request.url.path == "/health" \
-            or request.url.path == "/api/agent/report" or request.url.path.startswith("/ws/") \
-            or "/install/" in request.url.path or "/download/" in request.url.path:
+            or request.url.path.startswith("/api/agent/") or request.url.path.startswith("/ws/") \
+            or request.url.path.startswith("/install/") or "/download/" in request.url.path:
         return await call_next(request)
 
     PUBLIC_PATHS = {"/login", "/logout"}

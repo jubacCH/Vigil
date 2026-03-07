@@ -1,11 +1,9 @@
 """
 Agent router — register agents, receive metrics, serve UI + WebSocket live feed.
 """
-import io
 import json
 import logging
 import secrets
-import zipfile
 from datetime import datetime
 
 from fastapi import APIRouter, Request, WebSocket, WebSocketDisconnect
@@ -13,13 +11,67 @@ from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import delete, select, update
 
-from database import AsyncSessionLocal
+from database import AsyncSessionLocal, get_setting, set_setting
 from models.agent import Agent, AgentSnapshot
 from services.websocket import broadcast_agent_metric
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
+
+
+async def _get_enrollment_key() -> str:
+    """Get or create the global agent enrollment key."""
+    async with AsyncSessionLocal() as db:
+        key = await get_setting(db, "agent_enrollment_key")
+        if not key:
+            key = secrets.token_hex(16)
+            await set_setting(db, "agent_enrollment_key", key)
+            await db.commit()
+        return key
+
+
+# ── API: Agent self-enrollment ────────────────────────────────────────────────
+
+@router.post("/api/agent/enroll")
+async def agent_enroll(request: Request):
+    """Agent self-registers using the enrollment key. Returns a token."""
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"error": "Invalid JSON"}, status_code=400)
+
+    enroll_key = body.get("enrollment_key", "")
+    hostname = body.get("hostname", "").strip()
+    plat = body.get("platform", "")
+    arch = body.get("arch", "")
+
+    if not enroll_key or not hostname:
+        return JSONResponse({"error": "enrollment_key and hostname required"}, status_code=400)
+
+    expected_key = await _get_enrollment_key()
+    if enroll_key != expected_key:
+        return JSONResponse({"error": "Invalid enrollment key"}, status_code=403)
+
+    async with AsyncSessionLocal() as db:
+        # Check if agent with this hostname already exists → return existing token
+        result = await db.execute(select(Agent).where(Agent.hostname == hostname))
+        existing = result.scalar_one_or_none()
+        if existing:
+            existing.platform = plat or existing.platform
+            existing.arch = arch or existing.arch
+            existing.last_seen = datetime.utcnow()
+            await db.commit()
+            return {"ok": True, "token": existing.token, "agent_id": existing.id}
+
+        # Create new agent
+        token = secrets.token_hex(24)
+        agent = Agent(name=hostname, hostname=hostname, token=token, platform=plat, arch=arch)
+        db.add(agent)
+        await db.commit()
+        await db.refresh(agent)
+        logger.info("Agent auto-enrolled: %s (id=%d)", hostname, agent.id)
+        return {"ok": True, "token": agent.token, "agent_id": agent.id}
 
 
 # ── API: Agent reports metrics ───────────────────────────────────────────────
@@ -211,56 +263,78 @@ async def agent_regenerate_token(request: Request, agent_id: int):
     return RedirectResponse(f"/agents/{agent_id}", status_code=302)
 
 
-# ── Install scripts (one-liner endpoints) ────────────────────────────────────
+# ── Install scripts (universal one-liner endpoints) ──────────────────────────
 
-@router.get("/agents/{agent_id}/install/linux")
-async def agent_install_linux(request: Request, agent_id: int):
-    """Serve a bash install script. Usage: curl -sSL <url> | sudo bash"""
-    async with AsyncSessionLocal() as db:
-        result = await db.execute(select(Agent).where(Agent.id == agent_id))
-        agent = result.scalar_one_or_none()
-    if not agent:
-        return JSONResponse({"error": "Agent not found"}, status_code=404)
-
+@router.get("/install/linux")
+async def install_linux(request: Request):
+    """Universal Linux installer. Usage: curl -sSL <url>/install/linux | sudo bash"""
     server_url = f"{request.url.scheme}://{request.url.netloc}"
-    token = agent.token
+    enrollment_key = await _get_enrollment_key()
 
     script = f'''#!/bin/bash
 set -e
 
 # ── Nodeglow Agent Installer for Linux ──────────────────────────────────────
-# Server: {server_url}
-# Agent:  {agent.name}
-
+SERVER="{server_url}"
+ENROLLMENT_KEY="{enrollment_key}"
 INSTALL_DIR="/opt/nodeglow"
 SERVICE_NAME="nodeglow-agent"
-AGENT_URL="{server_url}/agents/{agent_id}/download/linux"
+CONFIG_FILE="$INSTALL_DIR/config.json"
 
-echo "╔══════════════════════════════════════════╗"
-echo "║       Nodeglow Agent Installer           ║"
-echo "╚══════════════════════════════════════════╝"
+echo ""
+echo "  ╔══════════════════════════════════════════╗"
+echo "  ║       Nodeglow Agent Installer           ║"
+echo "  ╚══════════════════════════════════════════╝"
 echo ""
 
 # Check root
 if [ "$(id -u)" -ne 0 ]; then
-    echo "Error: Please run as root (sudo)"
+    echo "  Error: Please run as root (sudo)"
     exit 1
 fi
 
-# Check Python 3
+# Check dependencies
 if ! command -v python3 &>/dev/null; then
-    echo "Error: Python 3 is required but not installed."
+    echo "  Error: Python 3 is required but not installed."
+    exit 1
+fi
+if ! command -v curl &>/dev/null; then
+    echo "  Error: curl is required but not installed."
     exit 1
 fi
 
-echo "[1/4] Creating install directory..."
+HOSTNAME=$(hostname)
+
+echo "  [1/5] Creating install directory..."
 mkdir -p "$INSTALL_DIR"
 
-echo "[2/4] Downloading agent..."
-curl -sSL "$AGENT_URL" -o "$INSTALL_DIR/nodeglow-agent.py"
+echo "  [2/5] Enrolling agent ($HOSTNAME)..."
+ENROLL_RESPONSE=$(curl -sSL -X POST "$SERVER/api/agent/enroll" \\
+    -H "Content-Type: application/json" \\
+    -d "{{\\"enrollment_key\\": \\"$ENROLLMENT_KEY\\", \\"hostname\\": \\"$HOSTNAME\\", \\"platform\\": \\"Linux\\", \\"arch\\": \\"$(uname -m)\\"}}")
+
+# Extract token from JSON response
+TOKEN=$(echo "$ENROLL_RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin).get('token',''))" 2>/dev/null)
+if [ -z "$TOKEN" ]; then
+    echo "  Error: Enrollment failed. Response: $ENROLL_RESPONSE"
+    exit 1
+fi
+echo "  Enrolled successfully."
+
+echo "  [3/5] Downloading agent..."
+curl -sSL "$SERVER/agents/download/linux" -o "$INSTALL_DIR/nodeglow-agent.py"
 chmod +x "$INSTALL_DIR/nodeglow-agent.py"
 
-echo "[3/4] Creating systemd service..."
+echo "  [4/5] Writing configuration..."
+cat > "$CONFIG_FILE" << CONF
+{{
+  "server": "$SERVER",
+  "token": "$TOKEN",
+  "interval": 30
+}}
+CONF
+
+echo "  [5/5] Creating systemd service..."
 cat > /etc/systemd/system/${{SERVICE_NAME}}.service << 'UNIT'
 [Unit]
 Description=Nodeglow Monitoring Agent
@@ -269,6 +343,7 @@ Wants=network-online.target
 
 [Service]
 Type=simple
+WorkingDirectory=/opt/nodeglow
 ExecStart=/usr/bin/python3 /opt/nodeglow/nodeglow-agent.py
 Restart=always
 RestartSec=10
@@ -278,91 +353,97 @@ Environment=PYTHONUNBUFFERED=1
 WantedBy=multi-user.target
 UNIT
 
-echo "[4/4] Starting service..."
 systemctl daemon-reload
-systemctl enable ${{SERVICE_NAME}}
+systemctl enable ${{SERVICE_NAME}} --quiet
 systemctl restart ${{SERVICE_NAME}}
 
 echo ""
-echo "Done! Agent is running."
+echo "  Done! Agent '$HOSTNAME' is running."
+echo ""
 echo "  Status:  systemctl status ${{SERVICE_NAME}}"
 echo "  Logs:    journalctl -u ${{SERVICE_NAME}} -f"
-echo "  Stop:    systemctl stop ${{SERVICE_NAME}}"
 echo "  Remove:  systemctl disable ${{SERVICE_NAME}} && rm /etc/systemd/system/${{SERVICE_NAME}}.service && rm -rf $INSTALL_DIR"
+echo ""
 '''
 
     from fastapi.responses import Response
     return Response(content=script, media_type="text/plain")
 
 
-@router.get("/agents/{agent_id}/install/windows")
-async def agent_install_windows(request: Request, agent_id: int):
-    """Serve a PowerShell install script. Usage: irm <url> | iex"""
-    async with AsyncSessionLocal() as db:
-        result = await db.execute(select(Agent).where(Agent.id == agent_id))
-        agent = result.scalar_one_or_none()
-    if not agent:
-        return JSONResponse({"error": "Agent not found"}, status_code=404)
-
+@router.get("/install/windows")
+async def install_windows(request: Request):
+    """Universal Windows installer. Usage: irm <url>/install/windows | iex"""
     server_url = f"{request.url.scheme}://{request.url.netloc}"
-    token = agent.token
+    enrollment_key = await _get_enrollment_key()
 
     script = f'''# ── Nodeglow Agent Installer for Windows ─────────────────────────────────────
-# Server: {server_url}
-# Agent:  {agent.name}
-
 $ErrorActionPreference = "Stop"
+$Server = "{server_url}"
+$EnrollmentKey = "{enrollment_key}"
 $InstallDir = "$env:ProgramData\\Nodeglow"
-$ExeUrl = "{server_url}/agents/download/windows"
-$ConfigJson = @"
-{{
-  "server": "{server_url}",
-  "token": "{token}",
-  "interval": 30
-}}
-"@
+$TaskName = "NodeglowAgent"
 
 Write-Host ""
-Write-Host "=== Nodeglow Agent Installer ===" -ForegroundColor Cyan
+Write-Host "  === Nodeglow Agent Installer ===" -ForegroundColor Cyan
 Write-Host ""
 
 # Check admin
 $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 if (-not $isAdmin) {{
-    Write-Host "Error: Please run as Administrator" -ForegroundColor Red
+    Write-Host "  Error: Please run as Administrator" -ForegroundColor Red
     exit 1
 }}
 
-Write-Host "[1/4] Creating install directory..."
+$Hostname = $env:COMPUTERNAME
+
+Write-Host "  [1/5] Creating install directory..."
 New-Item -ItemType Directory -Force -Path $InstallDir | Out-Null
 
-Write-Host "[2/4] Downloading agent..."
-Invoke-WebRequest -Uri $ExeUrl -OutFile "$InstallDir\\nodeglow-agent.exe" -UseBasicParsing
+Write-Host "  [2/5] Enrolling agent ($Hostname)..."
+$body = @{{
+    enrollment_key = $EnrollmentKey
+    hostname = $Hostname
+    platform = "Windows"
+    arch = $env:PROCESSOR_ARCHITECTURE
+}} | ConvertTo-Json
 
-Write-Host "[3/4] Writing configuration..."
-$ConfigJson | Out-File -FilePath "$InstallDir\\config.json" -Encoding UTF8 -Force
+$response = Invoke-RestMethod -Uri "$Server/api/agent/enroll" -Method Post -Body $body -ContentType "application/json"
+if (-not $response.token) {{
+    Write-Host "  Error: Enrollment failed." -ForegroundColor Red
+    exit 1
+}}
+$Token = $response.token
+Write-Host "  Enrolled successfully."
 
-Write-Host "[4/4] Creating scheduled task..."
-$TaskName = "NodeglowAgent"
+Write-Host "  [3/5] Downloading agent..."
+Invoke-WebRequest -Uri "$Server/agents/download/windows" -OutFile "$InstallDir\\nodeglow-agent.exe" -UseBasicParsing
+
+Write-Host "  [4/5] Writing configuration..."
+@"
+{{
+  "server": "$Server",
+  "token": "$Token",
+  "interval": 30
+}}
+"@ | Out-File -FilePath "$InstallDir\\config.json" -Encoding UTF8 -Force
+
+Write-Host "  [5/5] Creating scheduled task..."
 $Action = New-ScheduledTaskAction -Execute "$InstallDir\\nodeglow-agent.exe" -WorkingDirectory $InstallDir
 $Trigger = New-ScheduledTaskTrigger -AtStartup
 $Settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1) -ExecutionTimeLimit (New-TimeSpan -Days 365)
 $Principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount -RunLevel Highest
 
-# Remove existing task if present
 Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false -ErrorAction SilentlyContinue
-
 Register-ScheduledTask -TaskName $TaskName -Action $Action -Trigger $Trigger -Settings $Settings -Principal $Principal -Description "Nodeglow Monitoring Agent" | Out-Null
-
-# Start now
 Start-ScheduledTask -TaskName $TaskName
 
 Write-Host ""
-Write-Host "Done! Agent is running." -ForegroundColor Green
+Write-Host "  Done! Agent '$Hostname' is running." -ForegroundColor Green
+Write-Host ""
 Write-Host "  Status:  Get-ScheduledTask -TaskName $TaskName"
-Write-Host "  Logs:    Get-Content $InstallDir\\nodeglow-agent.log"
 Write-Host "  Stop:    Stop-ScheduledTask -TaskName $TaskName"
 Write-Host "  Remove:  Unregister-ScheduledTask -TaskName $TaskName -Confirm:`$false; Remove-Item -Recurse $InstallDir"
+Write-Host ""
 '''
 
     from fastapi.responses import Response
@@ -371,48 +452,9 @@ Write-Host "  Remove:  Unregister-ScheduledTask -TaskName $TaskName -Confirm:`$f
 
 # ── Download: Agent files (used by install scripts) ──────────────────────────
 
-@router.get("/agents/{agent_id}/download/linux")
-async def agent_download_linux(request: Request, agent_id: int):
-    """Download Linux agent script with token + server URL pre-configured."""
-    async with AsyncSessionLocal() as db:
-        result = await db.execute(select(Agent).where(Agent.id == agent_id))
-        agent = result.scalar_one_or_none()
-    if not agent:
-        return JSONResponse({"error": "Agent not found"}, status_code=404)
-
-    server_url = f"{request.url.scheme}://{request.url.netloc}"
-    token = agent.token
-
-    with open("static/nodeglow-agent-linux.py") as f:
-        script = f.read()
-
-    enrollment_block = f'''
-
-# ── Auto-enrolled configuration (baked in at download) ──────────────────────
-_ENROLLED_SERVER = "{server_url}"
-_ENROLLED_TOKEN  = "{token}"
-'''
-    script = script.replace(
-        '__version__ = "1.1.0"\n',
-        f'__version__ = "1.1.0"\n{enrollment_block}',
-    )
-    script = script.replace(
-        'default=os.environ.get("NODEGLOW_SERVER", "")',
-        'default=os.environ.get("NODEGLOW_SERVER", _ENROLLED_SERVER)',
-    )
-    script = script.replace(
-        'default=os.environ.get("NODEGLOW_TOKEN", "")',
-        'default=os.environ.get("NODEGLOW_TOKEN", _ENROLLED_TOKEN)',
-    )
-
-    from fastapi.responses import Response
-    return Response(content=script, media_type="text/x-python")
-
-
-# Generic download (without enrollment)
 @router.get("/agents/download/{platform}")
-async def agent_download_generic(request: Request, platform: str):
-    """Download generic agent exe/script (no token baked in)."""
+async def agent_download(request: Request, platform: str):
+    """Download generic agent exe/script (no token — config.json used instead)."""
     if platform == "windows":
         return FileResponse("static/nodeglow-agent.exe",
                             filename="nodeglow-agent.exe", media_type="application/octet-stream")
