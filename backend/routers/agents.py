@@ -463,7 +463,7 @@ Write-Host "  [4/5] Writing configuration..."
   "token": "$Token",
   "interval": 30
 }}
-"@ | Out-File -FilePath "$InstallDir\\config.json" -Encoding UTF8 -Force
+"@ | Set-Content -Path "$InstallDir\\config.json" -Encoding ASCII -Force
 
 Write-Host "  [5/5] Creating scheduled task..."
 $Action = New-ScheduledTaskAction -Execute "$InstallDir\\nodeglow-agent.exe" -WorkingDirectory $InstallDir
@@ -473,13 +473,13 @@ $Principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccou
 
 Write-Host "  [6/6] Testing connection..."
 try {{
-    $testOutput = & "$InstallDir\\nodeglow-agent.exe" --once 2>&1 | Out-String
+    $testOutput = & "$InstallDir\\nodeglow-agent.exe" --server $Server --token $Token --once 2>&1 | Out-String
     if ($testOutput -match "OK") {{
         Write-Host "  Connection test: SUCCESS" -ForegroundColor Green
         $testOutput -split "`n" | Where-Object {{ $_ -match "\\[nodeglow-agent\\].*OK" }} | Select-Object -Last 1 | ForEach-Object {{ Write-Host "  $_" -ForegroundColor Gray }}
     }} else {{
         Write-Host "  Connection test: FAILED" -ForegroundColor Yellow
-        $testOutput -split "`n" | Select-Object -Last 3 | ForEach-Object {{ Write-Host "  $_" -ForegroundColor Yellow }}
+        $testOutput -split "`n" | Where-Object {{ $_.Trim() }} | Select-Object -Last 3 | ForEach-Object {{ Write-Host "  $_" -ForegroundColor Yellow }}
         Write-Host "  The agent will retry when the task starts." -ForegroundColor Yellow
     }}
 }} catch {{
