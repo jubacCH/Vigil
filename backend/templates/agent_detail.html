@@ -158,65 +158,56 @@
 <!-- Deploy section -->
 <div class="glass-card p-4 mt-6">
     <h3 class="metric-label !text-[10px] mb-3">Deploy Agent</h3>
-    <p class="text-xs text-[--ng-text-muted] mb-3">Download the agent with token + server URL pre-configured. Just run it.</p>
+    <p class="text-xs text-[--ng-text-muted] mb-3">Copy and paste one of these commands to install the agent. Token and server are pre-configured.</p>
 
-    <div class="grid sm:grid-cols-2 gap-3 mb-4">
-        <a href="/agents/{{ agent.id }}/download/linux" class="glass-card p-4 flex items-center gap-3 hover:bg-white/[0.04] transition-colors">
-            <div class="w-10 h-10 rounded-xl bg-white/[0.04] flex items-center justify-center shrink-0">
-                <svg class="w-5 h-5 text-[--ng-text-muted]" viewBox="0 0 24 24" fill="currentColor"><path d="M12.5 2c-.3 0-.5.2-.5.5v1.3c-3.3.5-5.8 3.3-5.8 6.7v3.5l-1.5 1.5v1h15v-1l-1.5-1.5V10.5c0-3.4-2.5-6.2-5.8-6.7V2.5c0-.3-.2-.5-.4-.5zM20.6 9.6c-.6-2.2-2-4.1-3.8-5.3l-.6.8c1.6 1.1 2.8 2.7 3.3 4.6l1.1-.1zM4.5 9.6l-1.1-.1c.5-1.9 1.7-3.5 3.3-4.6l-.6-.8c-1.8 1.2-3.2 3.1-3.8 5.3l2.2.2zM12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2z"/></svg>
+    <div class="space-y-4">
+        <!-- Linux -->
+        <div>
+            <div class="flex items-center gap-2 mb-1.5">
+                <svg class="w-4 h-4 text-[--ng-text-muted]" viewBox="0 0 24 24" fill="currentColor"><path d="M12.5 2c-.3 0-.5.2-.5.5v1.3c-3.3.5-5.8 3.3-5.8 6.7v3.5l-1.5 1.5v1h15v-1l-1.5-1.5V10.5c0-3.4-2.5-6.2-5.8-6.7V2.5c0-.3-.2-.5-.4-.5zM20.6 9.6c-.6-2.2-2-4.1-3.8-5.3l-.6.8c1.6 1.1 2.8 2.7 3.3 4.6l1.1-.1zM4.5 9.6l-1.1-.1c.5-1.9 1.7-3.5 3.3-4.6l-.6-.8c-1.8 1.2-3.2 3.1-3.8 5.3l2.2.2zM12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2z"/></svg>
+                <p class="text-xs text-[--ng-text-primary] font-medium">Linux</p>
+                <span class="text-[9px] text-[--ng-text-muted] font-mono">requires: curl, python3, root</span>
             </div>
-            <div>
-                <p class="text-sm text-[--ng-text-primary] font-medium">Linux Agent</p>
-                <p class="text-[10px] text-[--ng-text-muted] font-mono">systemd install included</p>
+            <div class="relative group">
+                <code id="linux-cmd" class="block bg-white/[0.03] border border-white/[0.06] rounded-lg px-3 py-2.5 pr-20 text-[11px] font-mono text-ng-success overflow-x-auto whitespace-nowrap">curl -sSL {{ request.url.scheme }}://{{ request.url.netloc }}/agents/{{ agent.id }}/install/linux | sudo bash</code>
+                <button onclick="navigator.clipboard.writeText(document.getElementById('linux-cmd').textContent.trim()).then(()=>showToast('Copied!','success'))"
+                        class="absolute right-2 top-1/2 -translate-y-1/2 ng-btn ng-btn-ghost !px-2 !py-1 !text-[10px] opacity-0 group-hover:opacity-100 transition-opacity">
+                    Copy
+                </button>
             </div>
-            <svg class="w-4 h-4 text-[--ng-text-muted] ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
-            </svg>
-        </a>
-        <a href="/agents/{{ agent.id }}/download/windows" class="glass-card p-4 flex items-center gap-3 hover:bg-white/[0.04] transition-colors">
-            <div class="w-10 h-10 rounded-xl bg-white/[0.04] flex items-center justify-center shrink-0">
-                <img src="https://cdn.simpleicons.org/windows/94a3b8" class="w-5 h-5" alt="">
-            </div>
-            <div>
-                <p class="text-sm text-[--ng-text-primary] font-medium">Windows Agent (.exe)</p>
-                <p class="text-[10px] text-[--ng-text-muted] font-mono">ZIP with .exe + config — no Python needed</p>
-            </div>
-            <svg class="w-4 h-4 text-[--ng-text-muted] ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
-            </svg>
-        </a>
-    </div>
+        </div>
 
-    <div class="border-t border-white/[0.06] pt-3">
-        <p class="text-[10px] text-[--ng-text-muted] font-mono mb-2">Quick start (token is pre-configured in the download):</p>
-        <div class="space-y-2">
-            <div>
-                <p class="text-[9px] text-[--ng-text-muted] mb-0.5">Linux:</p>
-                <code class="block bg-white/[0.03] border border-white/[0.06] rounded-lg px-3 py-2 text-[11px] font-mono text-[--ng-text-secondary] overflow-x-auto">python3 nodeglow-agent-linux.py</code>
+        <!-- Windows -->
+        <div>
+            <div class="flex items-center gap-2 mb-1.5">
+                <img src="https://cdn.simpleicons.org/windows/94a3b8" class="w-4 h-4" alt="">
+                <p class="text-xs text-[--ng-text-primary] font-medium">Windows</p>
+                <span class="text-[9px] text-[--ng-text-muted] font-mono">run PowerShell as Administrator</span>
             </div>
-            <div>
-                <p class="text-[9px] text-[--ng-text-muted] mb-0.5">Linux (install as service):</p>
-                <code class="block bg-white/[0.03] border border-white/[0.06] rounded-lg px-3 py-2 text-[11px] font-mono text-[--ng-text-secondary] overflow-x-auto">sudo python3 nodeglow-agent-linux.py --install</code>
-            </div>
-            <div>
-                <p class="text-[9px] text-[--ng-text-muted] mb-0.5">Windows (extract ZIP, then run):</p>
-                <code class="block bg-white/[0.03] border border-white/[0.06] rounded-lg px-3 py-2 text-[11px] font-mono text-[--ng-text-secondary] overflow-x-auto">nodeglow-agent.exe</code>
+            <div class="relative group">
+                <code id="win-cmd" class="block bg-white/[0.03] border border-white/[0.06] rounded-lg px-3 py-2.5 pr-20 text-[11px] font-mono text-[#58a6ff] overflow-x-auto whitespace-nowrap">irm {{ request.url.scheme }}://{{ request.url.netloc }}/agents/{{ agent.id }}/install/windows | iex</code>
+                <button onclick="navigator.clipboard.writeText(document.getElementById('win-cmd').textContent.trim()).then(()=>showToast('Copied!','success'))"
+                        class="absolute right-2 top-1/2 -translate-y-1/2 ng-btn ng-btn-ghost !px-2 !py-1 !text-[10px] opacity-0 group-hover:opacity-100 transition-opacity">
+                    Copy
+                </button>
             </div>
         </div>
     </div>
 
-    <div class="border-t border-white/[0.06] pt-3 mt-3">
-        <div class="flex items-center justify-between mb-2">
-            <p class="text-[10px] text-[--ng-text-muted] font-mono">Token (for manual config):</p>
-            <div class="flex gap-2">
+    <div class="border-t border-white/[0.06] pt-3 mt-4">
+        <details class="group">
+            <summary class="text-[10px] text-[--ng-text-muted] font-mono cursor-pointer hover:text-[--ng-text-secondary] transition-colors">
+                Token (for manual config) ▸
+            </summary>
+            <div class="mt-2 flex items-center gap-2">
+                <code class="flex-1 block bg-white/[0.03] border border-white/[0.06] rounded-lg px-3 py-2 text-[10px] font-mono text-[--ng-text-muted] select-all overflow-x-auto">{{ agent.token }}</code>
                 <button onclick="navigator.clipboard.writeText('{{ agent.token }}').then(()=>showToast('Token copied','success'))"
-                        class="text-[10px] text-[--ng-text-secondary] hover:text-[--ng-text-primary] transition-colors">Copy</button>
-                <form method="post" action="/agents/{{ agent.id }}/regenerate-token" onsubmit="return confirm('Regenerate token? You will need to re-download the agent.')" class="inline">
-                    <button type="submit" class="text-[10px] text-ng-warning hover:text-ng-warning/80 transition-colors">Regenerate</button>
+                        class="ng-btn ng-btn-ghost !px-2 !py-1 !text-[10px] shrink-0">Copy</button>
+                <form method="post" action="/agents/{{ agent.id }}/regenerate-token" onsubmit="return confirm('Regenerate token? The install commands above will change.')" class="inline shrink-0">
+                    <button type="submit" class="ng-btn ng-btn-ghost !px-2 !py-1 !text-[10px] text-ng-warning">Regenerate</button>
                 </form>
             </div>
-        </div>
-        <code class="block bg-white/[0.03] border border-white/[0.06] rounded-lg px-3 py-2 text-[10px] font-mono text-[--ng-text-muted] select-all overflow-x-auto">{{ agent.token }}</code>
+        </details>
     </div>
 </div>
 

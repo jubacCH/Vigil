@@ -211,11 +211,11 @@ async def agent_regenerate_token(request: Request, agent_id: int):
     return RedirectResponse(f"/agents/{agent_id}", status_code=302)
 
 
-# ── Download: Agent script (with embedded token + server) ────────────────────
+# ── Install scripts (one-liner endpoints) ────────────────────────────────────
 
-@router.get("/agents/{agent_id}/download/{platform}")
-async def agent_download_enrolled(request: Request, agent_id: int, platform: str):
-    """Download agent script with token + server URL pre-configured."""
+@router.get("/agents/{agent_id}/install/linux")
+async def agent_install_linux(request: Request, agent_id: int):
+    """Serve a bash install script. Usage: curl -sSL <url> | sudo bash"""
     async with AsyncSessionLocal() as db:
         result = await db.execute(select(Agent).where(Agent.id == agent_id))
         agent = result.scalar_one_or_none()
@@ -225,37 +225,165 @@ async def agent_download_enrolled(request: Request, agent_id: int, platform: str
     server_url = f"{request.url.scheme}://{request.url.netloc}"
     token = agent.token
 
-    # Windows: ZIP with .exe + config.json
-    if platform == "windows":
-        import os
-        exe_path = os.path.join("static", "nodeglow-agent.exe")
-        if not os.path.exists(exe_path):
-            return JSONResponse({"error": "Windows agent exe not found"}, status_code=404)
+    script = f'''#!/bin/bash
+set -e
 
-        config_json = json.dumps({
-            "server": server_url,
-            "token": token,
-            "interval": 30,
-        }, indent=2)
+# ── Nodeglow Agent Installer for Linux ──────────────────────────────────────
+# Server: {server_url}
+# Agent:  {agent.name}
 
-        buf = io.BytesIO()
-        with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
-            zf.write(exe_path, "nodeglow-agent.exe")
-            zf.writestr("config.json", config_json)
-        buf.seek(0)
+INSTALL_DIR="/opt/nodeglow"
+SERVICE_NAME="nodeglow-agent"
+AGENT_URL="{server_url}/agents/{agent_id}/download/linux"
 
-        from fastapi.responses import Response
-        return Response(
-            content=buf.getvalue(),
-            media_type="application/zip",
-            headers={"Content-Disposition": f'attachment; filename="nodeglow-agent-{agent.name}.zip"'},
-        )
+echo "╔══════════════════════════════════════════╗"
+echo "║       Nodeglow Agent Installer           ║"
+echo "╚══════════════════════════════════════════╝"
+echo ""
 
-    # Linux: Python script with enrollment baked in
-    template_file = "static/nodeglow-agent-linux.py"
-    filename = "nodeglow-agent-linux.py"
+# Check root
+if [ "$(id -u)" -ne 0 ]; then
+    echo "Error: Please run as root (sudo)"
+    exit 1
+fi
 
-    with open(template_file) as f:
+# Check Python 3
+if ! command -v python3 &>/dev/null; then
+    echo "Error: Python 3 is required but not installed."
+    exit 1
+fi
+
+echo "[1/4] Creating install directory..."
+mkdir -p "$INSTALL_DIR"
+
+echo "[2/4] Downloading agent..."
+curl -sSL "$AGENT_URL" -o "$INSTALL_DIR/nodeglow-agent.py"
+chmod +x "$INSTALL_DIR/nodeglow-agent.py"
+
+echo "[3/4] Creating systemd service..."
+cat > /etc/systemd/system/${{SERVICE_NAME}}.service << 'UNIT'
+[Unit]
+Description=Nodeglow Monitoring Agent
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /opt/nodeglow/nodeglow-agent.py
+Restart=always
+RestartSec=10
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+
+echo "[4/4] Starting service..."
+systemctl daemon-reload
+systemctl enable ${{SERVICE_NAME}}
+systemctl restart ${{SERVICE_NAME}}
+
+echo ""
+echo "Done! Agent is running."
+echo "  Status:  systemctl status ${{SERVICE_NAME}}"
+echo "  Logs:    journalctl -u ${{SERVICE_NAME}} -f"
+echo "  Stop:    systemctl stop ${{SERVICE_NAME}}"
+echo "  Remove:  systemctl disable ${{SERVICE_NAME}} && rm /etc/systemd/system/${{SERVICE_NAME}}.service && rm -rf $INSTALL_DIR"
+'''
+
+    from fastapi.responses import Response
+    return Response(content=script, media_type="text/plain")
+
+
+@router.get("/agents/{agent_id}/install/windows")
+async def agent_install_windows(request: Request, agent_id: int):
+    """Serve a PowerShell install script. Usage: irm <url> | iex"""
+    async with AsyncSessionLocal() as db:
+        result = await db.execute(select(Agent).where(Agent.id == agent_id))
+        agent = result.scalar_one_or_none()
+    if not agent:
+        return JSONResponse({"error": "Agent not found"}, status_code=404)
+
+    server_url = f"{request.url.scheme}://{request.url.netloc}"
+    token = agent.token
+
+    script = f'''# ── Nodeglow Agent Installer for Windows ─────────────────────────────────────
+# Server: {server_url}
+# Agent:  {agent.name}
+
+$ErrorActionPreference = "Stop"
+$InstallDir = "$env:ProgramData\\Nodeglow"
+$ExeUrl = "{server_url}/agents/download/windows"
+$ConfigJson = @"
+{{
+  "server": "{server_url}",
+  "token": "{token}",
+  "interval": 30
+}}
+"@
+
+Write-Host ""
+Write-Host "=== Nodeglow Agent Installer ===" -ForegroundColor Cyan
+Write-Host ""
+
+# Check admin
+$isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+if (-not $isAdmin) {{
+    Write-Host "Error: Please run as Administrator" -ForegroundColor Red
+    exit 1
+}}
+
+Write-Host "[1/4] Creating install directory..."
+New-Item -ItemType Directory -Force -Path $InstallDir | Out-Null
+
+Write-Host "[2/4] Downloading agent..."
+Invoke-WebRequest -Uri $ExeUrl -OutFile "$InstallDir\\nodeglow-agent.exe" -UseBasicParsing
+
+Write-Host "[3/4] Writing configuration..."
+$ConfigJson | Out-File -FilePath "$InstallDir\\config.json" -Encoding UTF8 -Force
+
+Write-Host "[4/4] Creating scheduled task..."
+$TaskName = "NodeglowAgent"
+$Action = New-ScheduledTaskAction -Execute "$InstallDir\\nodeglow-agent.exe" -WorkingDirectory $InstallDir
+$Trigger = New-ScheduledTaskTrigger -AtStartup
+$Settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1) -ExecutionTimeLimit (New-TimeSpan -Days 365)
+$Principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount -RunLevel Highest
+
+# Remove existing task if present
+Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false -ErrorAction SilentlyContinue
+
+Register-ScheduledTask -TaskName $TaskName -Action $Action -Trigger $Trigger -Settings $Settings -Principal $Principal -Description "Nodeglow Monitoring Agent" | Out-Null
+
+# Start now
+Start-ScheduledTask -TaskName $TaskName
+
+Write-Host ""
+Write-Host "Done! Agent is running." -ForegroundColor Green
+Write-Host "  Status:  Get-ScheduledTask -TaskName $TaskName"
+Write-Host "  Logs:    Get-Content $InstallDir\\nodeglow-agent.log"
+Write-Host "  Stop:    Stop-ScheduledTask -TaskName $TaskName"
+Write-Host "  Remove:  Unregister-ScheduledTask -TaskName $TaskName -Confirm:`$false; Remove-Item -Recurse $InstallDir"
+'''
+
+    from fastapi.responses import Response
+    return Response(content=script, media_type="text/plain")
+
+
+# ── Download: Agent files (used by install scripts) ──────────────────────────
+
+@router.get("/agents/{agent_id}/download/linux")
+async def agent_download_linux(request: Request, agent_id: int):
+    """Download Linux agent script with token + server URL pre-configured."""
+    async with AsyncSessionLocal() as db:
+        result = await db.execute(select(Agent).where(Agent.id == agent_id))
+        agent = result.scalar_one_or_none()
+    if not agent:
+        return JSONResponse({"error": "Agent not found"}, status_code=404)
+
+    server_url = f"{request.url.scheme}://{request.url.netloc}"
+    token = agent.token
+
+    with open("static/nodeglow-agent-linux.py") as f:
         script = f.read()
 
     enrollment_block = f'''
@@ -265,30 +393,26 @@ _ENROLLED_SERVER = "{server_url}"
 _ENROLLED_TOKEN  = "{token}"
 '''
     script = script.replace(
-        f'__version__ = "1.1.0"\n',
+        '__version__ = "1.1.0"\n',
         f'__version__ = "1.1.0"\n{enrollment_block}',
     )
     script = script.replace(
-        """default=os.environ.get("NODEGLOW_SERVER", "")""",
-        """default=os.environ.get("NODEGLOW_SERVER", _ENROLLED_SERVER)""",
+        'default=os.environ.get("NODEGLOW_SERVER", "")',
+        'default=os.environ.get("NODEGLOW_SERVER", _ENROLLED_SERVER)',
     )
     script = script.replace(
-        """default=os.environ.get("NODEGLOW_TOKEN", "")""",
-        """default=os.environ.get("NODEGLOW_TOKEN", _ENROLLED_TOKEN)""",
+        'default=os.environ.get("NODEGLOW_TOKEN", "")',
+        'default=os.environ.get("NODEGLOW_TOKEN", _ENROLLED_TOKEN)',
     )
 
     from fastapi.responses import Response
-    return Response(
-        content=script,
-        media_type="text/x-python",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
-    )
+    return Response(content=script, media_type="text/x-python")
 
 
 # Generic download (without enrollment)
 @router.get("/agents/download/{platform}")
 async def agent_download_generic(request: Request, platform: str):
-    """Download generic agent script/exe (no token baked in)."""
+    """Download generic agent exe/script (no token baked in)."""
     if platform == "windows":
         return FileResponse("static/nodeglow-agent.exe",
                             filename="nodeglow-agent.exe", media_type="application/octet-stream")
