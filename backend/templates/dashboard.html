@@ -718,23 +718,23 @@
 <script src="https://cdn.jsdelivr.net/npm/gridstack@10/dist/gridstack-all.js"></script>
 <script>
   const WIDGET_META = {
-    integrations: { label: 'Integrations',  icon: 'M13 10V3L4 14h7v7l9-11h-7z', defW: 6, defH: 2, minW: 3, minH: 2 },
-    syslog:       { label: 'Syslog',        icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z', defW: 6, defH: 2, minW: 4, minH: 2 },
-    gravity:      { label: 'Gravity Well',  icon: 'M21 12a9 9 0 11-18 0 9 9 0 0118 0z', defW: 12, defH: 6, minW: 3, minH: 2 },
-    offline:      { label: 'Offline Hosts', icon: 'M18.364 5.636a9 9 0 010 12.728M5.636 18.364a9 9 0 010-12.728', defW: 12, defH: 3, minW: 4, minH: 2 },
-    hosts:        { label: 'All Hosts',     icon: 'M4 6h16M4 10h16M4 14h16M4 18h16', defW: 12, defH: 4, minW: 4, minH: 2 },
-    proxmox:      { label: 'Proxmox',       icon: 'M5 12h14M12 5l7 7-7 7', defW: 12, defH: 3, minW: 4, minH: 2 },
-    top10:        { label: 'Top 10',        icon: 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6m6 0h6m-6 0V9a2 2 0 012-2h2a2 2 0 012 2v10m6 0v-4a2 2 0 00-2-2h-2a2 2 0 00-2 2v4', defW: 12, defH: 6, minW: 6, minH: 2 },
-    speedtest:    { label: 'Speedtest',     icon: 'M13 10V3L4 14h7v7l9-11h-7z', defW: 6, defH: 3, minW: 3, minH: 2 },
-    heatmap:      { label: 'Availability',  icon: 'M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zm0 8a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1v-2z', defW: 12, defH: 4, minW: 4, minH: 2 },
-    storage:      { label: 'Storage',       icon: 'M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4', defW: 6, defH: 3, minW: 3, minH: 2 },
-    containers:   { label: 'Containers',    icon: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4', defW: 6, defH: 3, minW: 3, minH: 2 },
-    ups:          { label: 'UPS',           icon: 'M13 10V3L4 14h7v7l9-11h-7z', defW: 4, defH: 3, minW: 3, minH: 2 },
-    ssl:          { label: 'SSL Certs',     icon: 'M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z', defW: 4, defH: 3, minW: 3, minH: 2 },
-    alerts:       { label: 'Alerts',        icon: 'M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9', defW: 6, defH: 3, minW: 3, minH: 2 },
-    uptime:       { label: 'Uptime',        icon: 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z', defW: 4, defH: 4, minW: 3, minH: 2 },
-    clock:        { label: 'Clock',         icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z', defW: 3, defH: 2, minW: 2, minH: 2 },
-    quickstats:   { label: 'Overview',      icon: 'M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z', defW: 4, defH: 2, minW: 3, minH: 2 },
+    integrations: { label: 'Integrations',  icon: 'M13 10V3L4 14h7v7l9-11h-7z', defW: 6, defH: 4, minW: 3, minH: 3 },
+    syslog:       { label: 'Syslog',        icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z', defW: 6, defH: 4, minW: 4, minH: 3 },
+    gravity:      { label: 'Gravity Well',  icon: 'M21 12a9 9 0 11-18 0 9 9 0 0118 0z', defW: 12, defH: 12, minW: 3, minH: 4 },
+    offline:      { label: 'Offline Hosts', icon: 'M18.364 5.636a9 9 0 010 12.728M5.636 18.364a9 9 0 010-12.728', defW: 12, defH: 6, minW: 4, minH: 3 },
+    hosts:        { label: 'All Hosts',     icon: 'M4 6h16M4 10h16M4 14h16M4 18h16', defW: 12, defH: 8, minW: 4, minH: 3 },
+    proxmox:      { label: 'Proxmox',       icon: 'M5 12h14M12 5l7 7-7 7', defW: 12, defH: 6, minW: 3, minH: 3 },
+    top10:        { label: 'Top 10',        icon: 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6m6 0h6m-6 0V9a2 2 0 012-2h2a2 2 0 012 2v10m6 0v-4a2 2 0 00-2-2h-2a2 2 0 00-2 2v4', defW: 12, defH: 12, minW: 6, minH: 3 },
+    speedtest:    { label: 'Speedtest',     icon: 'M13 10V3L4 14h7v7l9-11h-7z', defW: 6, defH: 6, minW: 3, minH: 3 },
+    heatmap:      { label: 'Availability',  icon: 'M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zm0 8a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1v-2z', defW: 12, defH: 8, minW: 4, minH: 3 },
+    storage:      { label: 'Storage',       icon: 'M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4', defW: 6, defH: 6, minW: 3, minH: 3 },
+    containers:   { label: 'Containers',    icon: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4', defW: 6, defH: 6, minW: 3, minH: 3 },
+    ups:          { label: 'UPS',           icon: 'M13 10V3L4 14h7v7l9-11h-7z', defW: 4, defH: 6, minW: 3, minH: 3 },
+    ssl:          { label: 'SSL Certs',     icon: 'M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z', defW: 4, defH: 6, minW: 3, minH: 3 },
+    alerts:       { label: 'Alerts',        icon: 'M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9', defW: 6, defH: 6, minW: 3, minH: 3 },
+    uptime:       { label: 'Uptime',        icon: 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z', defW: 4, defH: 8, minW: 3, minH: 3 },
+    clock:        { label: 'Clock',         icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z', defW: 3, defH: 4, minW: 2, minH: 3 },
+    quickstats:   { label: 'Overview',      icon: 'M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z', defW: 4, defH: 4, minW: 3, minH: 3 },
   };
 
   let _gsGrid = null;
@@ -745,7 +745,7 @@
     if (!el) return;
     _gsGrid = GridStack.init({
       column: 12,
-      cellHeight: 80,
+      cellHeight: 40,
       margin: 8,
       animate: true,
       float: false,

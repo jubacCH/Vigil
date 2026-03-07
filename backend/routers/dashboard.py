@@ -33,20 +33,20 @@ from services import snapshot as snap_svc
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
 
-# ── Default dashboard widget layout (gridstack 12-col, cellHeight=80px) ──────
+# ── Default dashboard widget layout (gridstack 12-col, cellHeight=40px) ──────
 VALID_WIDGET_IDS = {
     "integrations", "syslog", "gravity", "offline", "hosts", "proxmox", "top10",
     "speedtest", "heatmap", "storage", "containers", "ups", "ssl", "alerts",
     "uptime", "clock", "quickstats",
 }
 DEFAULT_LAYOUT = [
-    {"id": "integrations", "x": 0, "y": 0, "w": 6,  "h": 2},
-    {"id": "syslog",       "x": 6, "y": 0, "w": 6,  "h": 2},
-    {"id": "gravity",      "x": 0, "y": 2, "w": 12, "h": 6},
-    {"id": "offline",      "x": 0, "y": 8, "w": 12, "h": 3},
-    {"id": "hosts",        "x": 0, "y": 11, "w": 12, "h": 4},
-    {"id": "proxmox",      "x": 0, "y": 15, "w": 12, "h": 3},
-    {"id": "top10",        "x": 0, "y": 18, "w": 12, "h": 6},
+    {"id": "integrations", "x": 0, "y": 0,  "w": 6,  "h": 4},
+    {"id": "syslog",       "x": 6, "y": 0,  "w": 6,  "h": 4},
+    {"id": "gravity",      "x": 0, "y": 4,  "w": 12, "h": 12},
+    {"id": "offline",      "x": 0, "y": 16, "w": 12, "h": 6},
+    {"id": "hosts",        "x": 0, "y": 22, "w": 12, "h": 8},
+    {"id": "proxmox",      "x": 0, "y": 30, "w": 12, "h": 6},
+    {"id": "top10",        "x": 0, "y": 36, "w": 12, "h": 12},
 ]
 
 
@@ -830,6 +830,11 @@ async def dashboard(request: Request, db: AsyncSession = Depends(get_db)):
         # Detect old format (has 'size' key instead of 'x'/'y') and fall back
         if layout and isinstance(layout[0], dict) and "x" not in layout[0]:
             layout = DEFAULT_LAYOUT
+        # Migrate old 80px-cellHeight layouts to 40px (double h and y)
+        elif layout and max(w.get("h", 0) for w in layout) <= 8:
+            for w in layout:
+                w["h"] = w.get("h", 2) * 2
+                w["y"] = w.get("y", 0) * 2
     except (json.JSONDecodeError, TypeError, IndexError):
         layout = DEFAULT_LAYOUT
 
@@ -884,7 +889,7 @@ async def save_dashboard_layout(request: Request, db: AsyncSession = Depends(get
             "x": max(0, min(11, int(w.get("x", 0)))),
             "y": max(0, int(w.get("y", 0))),
             "w": max(1, min(12, int(w.get("w", 12)))),
-            "h": max(1, min(12, int(w.get("h", 2)))),
+            "h": max(1, min(24, int(w.get("h", 4)))),
         })
     await set_setting(db, "dashboard_layout", json.dumps(cleaned))
     await db.commit()

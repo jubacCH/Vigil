@@ -1,5 +1,5 @@
 {# Widget: Top 10 tables (latency, downtime, CPU, RAM, disk) #}
-<div class="grid-stack-item" gs-id="top10" gs-x="{{ w.x }}" gs-y="{{ w.y }}" gs-w="{{ w.w }}" gs-h="{{ w.h }}" gs-min-h="2" gs-min-w="6">
+<div class="grid-stack-item" gs-id="top10" gs-x="{{ w.x }}" gs-y="{{ w.y }}" gs-w="{{ w.w }}" gs-h="{{ w.h }}" gs-min-h="3" gs-min-w="6">
   <div class="grid-stack-item-content p-4 relative">
     {{ widget_remove_btn() }}
     {% if top_latency or top_downtime or top_cpu or top_ram or top_disk %}
