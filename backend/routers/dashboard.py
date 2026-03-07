@@ -33,16 +33,16 @@ from services import snapshot as snap_svc
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
 
-# ── Default dashboard widget layout (gridstack 12-col) ───────────────────────
+# ── Default dashboard widget layout (gridstack 12-col, cellHeight=80px) ──────
 VALID_WIDGET_IDS = {"integrations", "syslog", "gravity", "offline", "hosts", "proxmox", "top10"}
 DEFAULT_LAYOUT = [
-    {"id": "integrations", "x": 0, "y": 0, "w": 6, "h": 2},
-    {"id": "syslog",       "x": 6, "y": 0, "w": 6, "h": 2},
-    {"id": "gravity",      "x": 0, "y": 2, "w": 12, "h": 4},
-    {"id": "offline",      "x": 0, "y": 6, "w": 12, "h": 2},
-    {"id": "hosts",        "x": 0, "y": 8, "w": 12, "h": 3},
-    {"id": "proxmox",      "x": 0, "y": 11, "w": 12, "h": 2},
-    {"id": "top10",        "x": 0, "y": 13, "w": 12, "h": 4},
+    {"id": "integrations", "x": 0, "y": 0, "w": 6,  "h": 2},
+    {"id": "syslog",       "x": 6, "y": 0, "w": 6,  "h": 2},
+    {"id": "gravity",      "x": 0, "y": 2, "w": 12, "h": 6},
+    {"id": "offline",      "x": 0, "y": 8, "w": 12, "h": 3},
+    {"id": "hosts",        "x": 0, "y": 11, "w": 12, "h": 4},
+    {"id": "proxmox",      "x": 0, "y": 15, "w": 12, "h": 3},
+    {"id": "top10",        "x": 0, "y": 18, "w": 12, "h": 6},
 ]
 
 
@@ -618,7 +618,10 @@ async def dashboard(request: Request, db: AsyncSession = Depends(get_db)):
     layout_json = await get_setting(db, "dashboard_layout")
     try:
         layout = json.loads(layout_json) if layout_json else DEFAULT_LAYOUT
-    except (json.JSONDecodeError, TypeError):
+        # Detect old format (has 'size' key instead of 'x'/'y') and fall back
+        if layout and isinstance(layout[0], dict) and "x" not in layout[0]:
+            layout = DEFAULT_LAYOUT
+    except (json.JSONDecodeError, TypeError, IndexError):
         layout = DEFAULT_LAYOUT
 
     return templates.TemplateResponse("dashboard.html", {

@@ -7,7 +7,10 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/gridstack@10/dist/gridstack.min.css"/>
 <style>
   .grid-stack { min-height: 100px; }
-  .grid-stack-item-content { overflow: hidden; border-radius: 8px; }
+  .grid-stack-item-content { overflow: hidden; overflow-y: auto; border-radius: 8px; }
+  .grid-stack-item-content::-webkit-scrollbar { width: 4px; }
+  .grid-stack-item-content::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+  .grid-stack-item-content::-webkit-scrollbar-track { background: transparent; }
   /* Edit mode styles */
   .gs-editing .grid-stack-item-content { outline: 1px dashed rgba(99,102,241,0.3); outline-offset: -1px; }
   .gs-editing .grid-stack-item-content:hover { outline-color: rgba(99,102,241,0.6); }
@@ -214,7 +217,7 @@
 
     {# ── INTEGRATIONS ─────────────────────────────────────────────────── #}
     {% if w.id == 'integrations' %}
-    <div class="grid-stack-item" gs-id="integrations" gs-x="{{ w.x }}" gs-y="{{ w.y }}" gs-w="{{ w.w }}" gs-h="{{ w.h }}" gs-min-h="1" gs-min-w="3">
+    <div class="grid-stack-item" gs-id="integrations" gs-x="{{ w.x }}" gs-y="{{ w.y }}" gs-w="{{ w.w }}" gs-h="{{ w.h }}" gs-min-h="2" gs-min-w="3">
       <div class="grid-stack-item-content p-4 relative">
         {{ widget_remove_btn() }}
         {% if integration_health %}
@@ -256,7 +259,7 @@
 
     {# ── SYSLOG ───────────────────────────────────────────────────────── #}
     {% if w.id == 'syslog' %}
-    <div class="grid-stack-item" gs-id="syslog" gs-x="{{ w.x }}" gs-y="{{ w.y }}" gs-w="{{ w.w }}" gs-h="{{ w.h }}" gs-min-h="1" gs-min-w="3">
+    <div class="grid-stack-item" gs-id="syslog" gs-x="{{ w.x }}" gs-y="{{ w.y }}" gs-w="{{ w.w }}" gs-h="{{ w.h }}" gs-min-h="2" gs-min-w="4">
       <div class="grid-stack-item-content p-4 relative">
         {{ widget_remove_btn() }}
         {% if syslog_stats and syslog_stats.total > 0 %}
@@ -309,21 +312,21 @@
 
     {# ── GRAVITY WELL ─────────────────────────────────────────────────── #}
     {% if w.id == 'gravity' %}
-    <div class="grid-stack-item" gs-id="gravity" gs-x="{{ w.x }}" gs-y="{{ w.y }}" gs-w="{{ w.w }}" gs-h="{{ w.h }}" gs-min-h="3" gs-min-w="4">
-      <div class="grid-stack-item-content relative overflow-hidden glass-card-static !p-0">
+    <div class="grid-stack-item" gs-id="gravity" gs-x="{{ w.x }}" gs-y="{{ w.y }}" gs-w="{{ w.w }}" gs-h="{{ w.h }}" gs-min-h="4" gs-min-w="6">
+      <div class="grid-stack-item-content relative overflow-hidden glass-card-static !p-0 flex flex-col">
         {{ widget_remove_btn() }}
         {% if host_stats %}
-        <div class="px-5 py-3 border-b border-white/[0.06] flex items-center justify-between cursor-pointer section-header" data-section="nodemap">
+        <div class="px-5 py-3 border-b border-white/[0.06] flex items-center justify-between cursor-pointer section-header shrink-0" data-section="nodemap">
           <h2 class="metric-label !text-[10px]">Gravity Well</h2>
           <div class="flex items-center gap-3">
             <span class="text-[--ng-text-muted] text-[10px] font-mono">{{ host_stats|length }} nodes</span>
             <svg class="w-3.5 h-3.5 text-[--ng-text-muted] section-chevron transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
           </div>
         </div>
-        <div class="section-body" id="nodemap-body">
-          <div class="hidden md:block relative overflow-hidden" id="node-map-wrap"
+        <div class="section-body flex-1 min-h-0" id="nodemap-body">
+          <div class="hidden md:block relative overflow-hidden h-full" id="node-map-wrap"
                style="background: radial-gradient(circle at 50% 50%, rgba(99,102,241,0.06) 0%, rgba(6,10,23,0.5) 70%, #0a0c1a 100%);">
-            <canvas id="gravity-canvas" style="width:100%;display:block;"></canvas>
+            <canvas id="gravity-canvas" style="width:100%;height:100%;display:block;"></canvas>
             <div id="node-tooltip" class="hidden absolute pointer-events-none z-20 !rounded-lg min-w-[190px] text-xs"
                  style="backdrop-filter:blur(24px);background:rgba(10,12,28,0.9);border:1px solid rgba(255,255,255,0.08);padding:12px">
               <div class="flex items-center gap-2 mb-2">
@@ -357,7 +360,7 @@
 
     {# ── OFFLINE HOSTS ────────────────────────────────────────────────── #}
     {% if w.id == 'offline' %}
-    <div class="grid-stack-item" gs-id="offline" gs-x="{{ w.x }}" gs-y="{{ w.y }}" gs-w="{{ w.w }}" gs-h="{{ w.h }}" gs-min-h="1" gs-min-w="4">
+    <div class="grid-stack-item" gs-id="offline" gs-x="{{ w.x }}" gs-y="{{ w.y }}" gs-w="{{ w.w }}" gs-h="{{ w.h }}" gs-min-h="2" gs-min-w="4">
       <div class="grid-stack-item-content p-4 relative">
         {{ widget_remove_btn() }}
         {% if offline_hosts %}
@@ -445,7 +448,7 @@
 
     {# ── PROXMOX ──────────────────────────────────────────────────────── #}
     {% if w.id == 'proxmox' %}
-    <div class="grid-stack-item" gs-id="proxmox" gs-x="{{ w.x }}" gs-y="{{ w.y }}" gs-w="{{ w.w }}" gs-h="{{ w.h }}" gs-min-h="1" gs-min-w="4">
+    <div class="grid-stack-item" gs-id="proxmox" gs-x="{{ w.x }}" gs-y="{{ w.y }}" gs-w="{{ w.w }}" gs-h="{{ w.h }}" gs-min-h="2" gs-min-w="4">
       <div class="grid-stack-item-content p-4 relative">
         {{ widget_remove_btn() }}
         {% if proxmox_clusters %}
@@ -669,40 +672,46 @@
       const rect = wrap.getBoundingClientRect();
       const dpr = window.devicePixelRatio || 1;
       W = rect.width;
-      H = Math.min(W * 0.55, 500);
+      H = rect.height > 50 ? rect.height : Math.min(W * 0.55, 500);
       canvas.width = W * dpr;
       canvas.height = H * dpr;
-      canvas.style.height = H + 'px';
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       CX = W / 2;
       CY = H / 2;
-      maxR = Math.min(CX, CY) * 0.9;
+      maxR = Math.min(CX, CY) * 0.92;
     }
     resize();
 
     _gravityObserver = new ResizeObserver(() => resize());
     _gravityObserver.observe(wrap);
 
-    // Build particles (once, reuse across resizes)
+    // Build particles — scale sizes based on host count so space is used well
     if (!_gravityParticles || _gravityParticles.length !== hosts.length) {
+      const n = hosts.length;
+      // Fewer hosts = bigger particles + more spread; many hosts = tighter packing
+      const sizeMul = n <= 5 ? 2.0 : n <= 15 ? 1.4 : n <= 30 ? 1.0 : n <= 60 ? 0.8 : 0.6;
+      const spreadMul = n <= 10 ? 0.7 : n <= 30 ? 0.85 : 1.0;
+
       _gravityParticles = hosts.map((h, i) => {
         let targetR;
         if (h.online === false) {
-          targetR = 0.82 + Math.random() * 0.16;
+          targetR = (0.75 + Math.random() * 0.2) * spreadMul;
         } else if (h.maintenance) {
-          targetR = 0.5 + Math.random() * 0.2;
+          targetR = (0.45 + Math.random() * 0.2) * spreadMul;
         } else {
           const l = Math.min(h.latency || 1, 200);
-          targetR = 0.12 + (Math.log(l + 1) / Math.log(201)) * 0.58;
+          targetR = (0.1 + (Math.log(l + 1) / Math.log(201)) * 0.6) * spreadMul;
         }
-        const angle = (i / hosts.length) * Math.PI * 2 + (Math.random() - 0.5) * 0.4;
+        // Spread angles evenly with jitter
+        const angle = (i / n) * Math.PI * 2 + (Math.random() - 0.5) * 0.5;
         const speed = h.online === false
           ? 0.0002 + Math.random() * 0.0002
           : 0.0006 + (1 / Math.max(1, h.latency || 1)) * 0.0006;
+        const baseSize = h.online === false ? 4.5 : 3 + ((h.uptimePct || 50) / 100) * 1.8;
         return {
           host: h, angle, radius: targetR, targetRadius: targetR,
           speed: speed * (Math.random() > 0.5 ? 1 : -1),
-          size: h.online === false ? 4.5 : 3 + ((h.uptimePct || 50) / 100) * 1.8,
+          size: baseSize * sizeMul,
           trail: [],
           wobble: Math.random() * 0.015,
           wobblePhase: Math.random() * Math.PI * 2,
@@ -733,12 +742,13 @@
       time += 0.016;
       ctx.clearRect(0, 0, W, H);
 
-      // Concentric orbit rings
+      // Concentric orbit rings (elliptical)
       ctx.strokeStyle = 'rgba(100,120,255,0.035)';
       ctx.lineWidth = 0.5;
       for (let i = 1; i <= 5; i++) {
+        const rr = maxR * (i / 5);
         ctx.beginPath();
-        ctx.arc(CX, CY, maxR * (i / 5), 0, Math.PI * 2);
+        ctx.ellipse(CX, CY, rr, rr * (CY / CX), 0, 0, Math.PI * 2);
         ctx.stroke();
       }
 
@@ -765,7 +775,7 @@
       bgStars.forEach(s => {
         const tw = 0.5 + Math.sin(time * s.tw + s.tp) * 0.5;
         ctx.beginPath();
-        ctx.arc(CX + s.x * maxR, CY + s.y * maxR * (H / W * 1.8), s.r, 0, Math.PI * 2);
+        ctx.arc(CX + s.x * maxR, CY + s.y * maxR * (CY / CX), s.r, 0, Math.PI * 2);
         ctx.fillStyle = `rgba(200,210,255,${s.o * tw})`;
         ctx.fill();
       });
@@ -778,7 +788,7 @@
         const r = (p.radius + wobbleOff) * maxR;
 
         const x = CX + Math.cos(p.angle) * r;
-        const y = CY + Math.sin(p.angle) * r * (H / W * 1.8);
+        const y = CY + Math.sin(p.angle) * r * (CY / CX);
         p.screenX = x;
         p.screenY = y;
 
@@ -820,10 +830,11 @@
         ctx.fillStyle = `rgba(255,255,255,${alpha * 0.55})`;
         ctx.fill();
 
-        // Label (always for offline/hovered, always show name)
-        const showLabel = isHov || p.host.online === false;
+        // Label: always show if hovered/offline, or if few hosts
+        const showLabel = isHov || p.host.online === false || hosts.length <= 30;
         if (showLabel) {
-          ctx.font = `${isHov ? 10 : 8}px 'JetBrains Mono', monospace`;
+          const fontSize = isHov ? 10 : hosts.length <= 10 ? 10 : hosts.length <= 30 ? 8 : 7;
+          ctx.font = `${fontSize}px 'JetBrains Mono', monospace`;
           ctx.fillStyle = `rgba(255,255,255,${isHov ? 0.85 : 0.45})`;
           ctx.textAlign = 'center';
           ctx.fillText(p.host.name, x, y - sz - 5);
@@ -1086,7 +1097,7 @@
     if (!el) return;
     _gsGrid = GridStack.init({
       column: 12,
-      cellHeight: 70,
+      cellHeight: 80,
       margin: 8,
       animate: true,
       float: false,
@@ -1094,6 +1105,10 @@
       disableDrag: true,
       removable: false,
     }, el);
+    // Reinit gravity well after gridstack resizes
+    _gsGrid.on('resizestop', (event, el) => {
+      if (el.getAttribute('gs-id') === 'gravity') setTimeout(() => initGravityWell(0), 100);
+    });
   }
   initGridStack();
 
