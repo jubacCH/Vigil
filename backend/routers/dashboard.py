@@ -343,8 +343,24 @@ async def dashboard(request: Request, db: AsyncSession = Depends(get_db)):
     all_ph = (await db.execute(select(PingHost))).scalars().all()
     ping_host_map: dict[str, int] = {}
     for h in all_ph:
+        # Exact matches
         ping_host_map[h.hostname] = h.id
         ping_host_map.setdefault(h.name, h.id)
+        # Lowercase matches
+        ping_host_map.setdefault(h.hostname.lower(), h.id)
+        ping_host_map.setdefault(h.name.lower(), h.id)
+        # Strip URL parts for hostname matching (https://host:port/path → host)
+        raw = h.hostname
+        for pfx in ("https://", "http://"):
+            if raw.startswith(pfx):
+                raw = raw[len(pfx):]
+                break
+        short_host = raw.split("/")[0].split(":")[0]
+        ping_host_map.setdefault(short_host, h.id)
+        ping_host_map.setdefault(short_host.lower(), h.id)
+        # Also map short hostname (before first dot) for FQDN matching
+        if "." in short_host:
+            ping_host_map.setdefault(short_host.split(".")[0].lower(), h.id)
 
     # Pre-fetch all integration configs (used by topology + integration health)
     all_configs_result = await db.execute(
@@ -380,10 +396,12 @@ async def dashboard(request: Request, db: AsyncSession = Depends(get_db)):
             node_name = (g.get("node") or "").strip()
             if not guest_name or not node_name:
                 continue
-            # Find the PingHost for this guest
-            guest_ph_id = ping_host_map.get(guest_name)
+            # Find the PingHost for this guest (try exact, lowercase, and short name)
+            guest_ph_id = (ping_host_map.get(guest_name)
+                           or ping_host_map.get(guest_name.lower()))
             # Find the PingHost for the Proxmox node
-            node_ph_id = ping_host_map.get(node_name)
+            node_ph_id = (ping_host_map.get(node_name)
+                          or ping_host_map.get(node_name.lower()))
             if guest_ph_id and node_ph_id and guest_ph_id != node_ph_id:
                 # Only auto-link if no manual parent_id is set
                 if topology.get(guest_ph_id) is None:
