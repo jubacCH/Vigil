@@ -21,8 +21,10 @@ class PingHost(Base):
     source               = Column(String, default="manual") # manual | phpipam | proxmox | unifi
     source_detail        = Column(String, nullable=True)
     mac_address          = Column(String, nullable=True)
+    parent_id            = Column(Integer, ForeignKey("ping_hosts.id"), nullable=True)
     created_at           = Column(DateTime, default=datetime.utcnow)
     results = relationship("PingResult", back_populates="host", cascade="all, delete-orphan")
+    children = relationship("PingHost", foreign_keys=[parent_id], viewonly=True)
 
 
 class PingResult(Base):
