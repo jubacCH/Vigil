@@ -657,9 +657,10 @@
     nodePositions.clear();
 
     const W = wrap.clientWidth - 32;
-    // Scale factor: reference width 1100px. Larger screens get bigger elements.
+    // S = visual scale (stars, fonts). L = layout scale (spacing, orbits) — tighter.
     const S = Math.max(0.7, Math.min(1.8, W / 1100));
-    const PAD = Math.round(30 * S);
+    const L = Math.max(0.5, Math.min(1.2, W / 1400));
+    const PAD = Math.round(20 * L);
 
     // Seeded random for consistent star placement across renders
     function makeRng(seed) {
@@ -768,22 +769,22 @@
         const kids = (childrenOf.get(root.id) || []).sort((a,b) => a.name.localeCompare(b.name));
         let gkCount = 0;
         kids.forEach(k => gkCount += (childrenOf.get(k.id)||[]).length);
-        const orbitR = Math.round((60 + kids.length * 20) * S);
+        const orbitR = Math.round((45 + kids.length * 15) * L);
         return { root, kids, orbitR, gkCount };
       });
 
       // Scale orbits if they'd exceed canvas width
-      const clusterGap = Math.round(80 * S);
+      const clusterGap = Math.round(50 * L);
       let totalW = clusterData.reduce((s, c) => s + c.orbitR * 2, 0)
         + Math.max(0, clusterData.length - 1) * clusterGap;
       if (totalW > W - PAD * 2) {
         const sc = (W - PAD * 2) / totalW;
-        clusterData.forEach(c => c.orbitR = Math.max(Math.round(40 * S), Math.round(c.orbitR * sc)));
+        clusterData.forEach(c => c.orbitR = Math.max(Math.round(30 * L), Math.round(c.orbitR * sc)));
         totalW = clusterData.reduce((s, c) => s + c.orbitR * 2, 0)
           + Math.max(0, clusterData.length - 1) * clusterGap;
       }
 
-      const clusterCenterY = PAD + Math.round(30 * S) + Math.max(...clusterData.map(c => c.orbitR));
+      const clusterCenterY = PAD + Math.round(20 * L) + Math.max(...clusterData.map(c => c.orbitR));
       let cx = Math.max(PAD, (W - totalW) / 2);
 
       clusterData.forEach(cd => {
@@ -806,44 +807,44 @@
           // Grandchildren in smaller orbit
           const gkids = (childrenOf.get(kid.id) || []).sort((a,b) => a.name.localeCompare(b.name));
           if (gkids.length > 0) {
-            const gOrbit = Math.round((28 + gkids.length * 8) * S);
+            const gOrbit = Math.round((20 + gkids.length * 6) * L);
             gkids.forEach((gk, gi) => {
               const ga = (gi / gkids.length) * Math.PI * 2 - Math.PI / 2;
               const gx = kx + Math.cos(ga) * gOrbit;
               const gy = ky + Math.sin(ga) * gOrbit;
               addLine(kx, ky, gx, gy, starColor(gk).glow, 0.06);
               addStar(gx, gy, gk, 'grandchild');
-              maxY = Math.max(maxY, gy + Math.round(25 * S));
+              maxY = Math.max(maxY, gy + Math.round(18 * L));
             });
           }
-          maxY = Math.max(maxY, ky + Math.round(25 * S));
+          maxY = Math.max(maxY, ky + Math.round(18 * L));
         });
 
         cx += cd.orbitR * 2 + clusterGap;
-        maxY = Math.max(maxY, rootY + cd.orbitR + Math.round(50 * S));
+        maxY = Math.max(maxY, rootY + cd.orbitR + Math.round(30 * L));
       });
     }
 
     // ── Layout: Standalone star field ─────────────────────────────────────
     if (standalone.length > 0) {
-      const startY = maxY + (clusters.length > 0 ? Math.round(50 * S) : Math.round(10 * S));
-      const cols = Math.min(12, Math.max(3, Math.floor((W - PAD*2) / Math.round(95 * S))));
+      const startY = maxY + (clusters.length > 0 ? Math.round(30 * L) : Math.round(8 * L));
+      const cols = Math.min(14, Math.max(4, Math.floor((W - PAD*2) / Math.round(80 * L))));
       const spacingX = (W - PAD*2) / cols;
-      const rowH = Math.round(46 * S);
+      const rowH = Math.round(36 * L);
 
       standalone.forEach((h, i) => {
         const rng = makeRng(nameHash(h.name));
         const col = i % cols;
         const row = Math.floor(i / cols);
         // Jitter for organic star-field feel
-        const jx = (rng() - 0.5) * spacingX * 0.25;
-        const jy = (rng() - 0.5) * 12 * S;
+        const jx = (rng() - 0.5) * spacingX * 0.2;
+        const jy = (rng() - 0.5) * 8 * L;
         const sx = PAD + spacingX * 0.5 + col * spacingX + jx;
         const sy = startY + row * rowH + jy;
         addStar(sx, sy, h, 'standalone');
-        maxY = Math.max(maxY, sy + Math.round(25 * S));
+        maxY = Math.max(maxY, sy + Math.round(18 * L));
       });
-      maxY += Math.round(20 * S);
+      maxY += Math.round(12 * L);
     }
 
     const H = Math.max(200, maxY);
