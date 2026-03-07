@@ -324,9 +324,9 @@
           </div>
         </div>
         <div class="section-body flex-1 min-h-0" id="nodemap-body">
-          <div class="hidden md:block relative overflow-hidden h-full" id="node-map-wrap"
+          <div class="hidden md:flex items-center justify-center relative overflow-hidden h-full" id="node-map-wrap"
                style="background: radial-gradient(circle at 50% 50%, rgba(99,102,241,0.06) 0%, rgba(6,10,23,0.5) 70%, #0a0c1a 100%);">
-            <canvas id="gravity-canvas" style="width:100%;height:100%;display:block;"></canvas>
+            <canvas id="gravity-canvas" style="display:block;"></canvas>
             <div id="node-tooltip" class="hidden absolute pointer-events-none z-20 !rounded-lg min-w-[190px] text-xs"
                  style="backdrop-filter:blur(24px);background:rgba(10,12,28,0.9);border:1px solid rgba(255,255,255,0.08);padding:12px">
               <div class="flex items-center gap-2 mb-2">
@@ -671,14 +671,17 @@
     function resize() {
       const rect = wrap.getBoundingClientRect();
       const dpr = window.devicePixelRatio || 1;
-      W = rect.width;
-      H = rect.height > 50 ? rect.height : Math.min(W * 0.55, 500);
-      canvas.width = W * dpr;
-      canvas.height = H * dpr;
+      const side = Math.min(rect.width, rect.height > 50 ? rect.height : rect.width);
+      W = side;
+      H = side;
+      canvas.width = side * dpr;
+      canvas.height = side * dpr;
+      canvas.style.width = side + 'px';
+      canvas.style.height = side + 'px';
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      CX = W / 2;
-      CY = H / 2;
-      maxR = Math.min(CX, CY) * 0.92;
+      CX = side / 2;
+      CY = side / 2;
+      maxR = (side / 2) * 0.92;
     }
     resize();
 
@@ -689,7 +692,8 @@
     if (!_gravityParticles || _gravityParticles.length !== hosts.length) {
       const n = hosts.length;
       // Fewer hosts = bigger particles + more spread; many hosts = tighter packing
-      const sizeMul = n <= 5 ? 2.0 : n <= 15 ? 1.4 : n <= 30 ? 1.0 : n <= 60 ? 0.8 : 0.6;
+      // Uniform particle size, adaptive to host count
+      const pSize = n <= 5 ? 6 : n <= 15 ? 5 : n <= 30 ? 4 : n <= 60 ? 3.5 : 2.8;
       const spreadMul = n <= 10 ? 0.7 : n <= 30 ? 0.85 : 1.0;
 
       _gravityParticles = hosts.map((h, i) => {
@@ -702,16 +706,14 @@
           const l = Math.min(h.latency || 1, 200);
           targetR = (0.1 + (Math.log(l + 1) / Math.log(201)) * 0.6) * spreadMul;
         }
-        // Spread angles evenly with jitter
         const angle = (i / n) * Math.PI * 2 + (Math.random() - 0.5) * 0.5;
         const speed = h.online === false
           ? 0.0002 + Math.random() * 0.0002
           : 0.0006 + (1 / Math.max(1, h.latency || 1)) * 0.0006;
-        const baseSize = h.online === false ? 4.5 : 3 + ((h.uptimePct || 50) / 100) * 1.8;
         return {
           host: h, angle, radius: targetR, targetRadius: targetR,
           speed: speed * (Math.random() > 0.5 ? 1 : -1),
-          size: baseSize * sizeMul,
+          size: pSize,
           trail: [],
           wobble: Math.random() * 0.015,
           wobblePhase: Math.random() * Math.PI * 2,
@@ -830,15 +832,7 @@
         ctx.fillStyle = `rgba(255,255,255,${alpha * 0.55})`;
         ctx.fill();
 
-        // Label: always show if hovered/offline, or if few hosts
-        const showLabel = isHov || p.host.online === false || hosts.length <= 30;
-        if (showLabel) {
-          const fontSize = isHov ? 10 : hosts.length <= 10 ? 10 : hosts.length <= 30 ? 8 : 7;
-          ctx.font = `${fontSize}px 'JetBrains Mono', monospace`;
-          ctx.fillStyle = `rgba(255,255,255,${isHov ? 0.85 : 0.45})`;
-          ctx.textAlign = 'center';
-          ctx.fillText(p.host.name, x, y - sz - 5);
-        }
+        // No labels — tooltip on hover is enough
       });
 
       _gravityAnim = requestAnimationFrame(draw);
