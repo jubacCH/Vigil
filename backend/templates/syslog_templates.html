@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+{% block title %}Log Templates – {{ request.state.site_name }}{% endblock %}
+
+{% block content %}
+<div class="p-8">
+
+  <!-- Header -->
+  <div class="flex items-center justify-between mb-6">
+    <div>
+      <h1 class="ng-heading text-2xl text-[--ng-text-primary]">Log Templates</h1>
+      <p class="text-slate-500 text-sm mt-0.5">{{ total }} learned message patterns &middot; auto-extracted via Drain algorithm</p>
+    </div>
+    <a href="/syslog" class="ng-btn px-3 py-1.5 rounded-lg bg-[--ng-glass-bg] border border-[--ng-glass-border] text-slate-400 hover:text-white text-sm">
+      &larr; Back to Logs
+    </a>
+  </div>
+
+  <!-- Filters -->
+  <div class="flex items-center gap-3 mb-4">
+    <!-- Sort -->
+    <div class="flex items-center gap-1.5">
+      {% for key, label in [("recent", "Recent"), ("count", "Most Seen"), ("noise", "Most Interesting"), ("new", "Newest")] %}
+      <a href="/syslog/templates?sort={{ key }}&tag={{ f_tag }}"
+         class="px-2.5 py-1 rounded-lg text-xs font-medium transition-colors
+           {% if f_sort == key %}bg-indigo-600 text-white{% else %}bg-[--ng-glass-bg] border border-[--ng-glass-border] text-slate-400 hover:text-white{% endif %}">
+        {{ label }}
+      </a>
+      {% endfor %}
+    </div>
+
+    <!-- Tag filter -->
+    {% if all_tags %}
+    <span class="text-slate-600 text-xs">|</span>
+    <div class="flex items-center gap-1.5 flex-wrap">
+      {% if f_tag %}
+      <a href="/syslog/templates?sort={{ f_sort }}"
+         class="px-2 py-0.5 rounded text-[10px] font-mono bg-slate-500/15 text-slate-400 hover:text-white transition-colors">
+        All
+      </a>
+      {% endif %}
+      {% for t in all_tags %}
+      <a href="/syslog/templates?sort={{ f_sort }}&tag={{ t }}"
+         class="px-2 py-0.5 rounded text-[10px] font-mono transition-colors
+           {% if f_tag == t %}bg-indigo-600 text-white{% else %}bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20{% endif %}">
+        {{ t }}
+      </a>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Template list -->
+  {% if templates %}
+  <div class="space-y-2">
+    {% for tpl in templates %}
+    <div class="bg-[--ng-glass-bg] border border-[--ng-glass-border] backdrop-blur-2xl rounded-xl px-5 py-3.5 hover:border-white/[0.12] transition-colors">
+      <div class="flex items-start gap-4">
+
+        <!-- Noise indicator -->
+        <div class="shrink-0 mt-1 w-8 text-center">
+          <div class="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-mono font-bold
+            {% if tpl.noise_score <= 15 %}bg-red-500/15 text-red-400 border border-red-500/25
+            {% elif tpl.noise_score <= 30 %}bg-yellow-500/15 text-yellow-400 border border-yellow-500/25
+            {% elif tpl.noise_score <= 60 %}bg-slate-500/10 text-slate-400 border border-slate-500/15
+            {% else %}bg-slate-500/5 text-slate-600 border border-slate-600/10{% endif %}">
+            {{ tpl.noise_score }}
+          </div>
+        </div>
+
+        <!-- Content -->
+        <div class="flex-1 min-w-0">
+          <p class="text-[--ng-text-primary] text-sm font-mono leading-relaxed break-all
+            {% if tpl.noise_score > 70 %}opacity-40{% endif %}">{{ tpl.template }}</p>
+
+          <div class="flex items-center gap-3 mt-2 flex-wrap">
+            <!-- Count -->
+            <span class="text-[--ng-text-muted] text-[10px] font-mono tabular-nums">
+              {{ "{:,}".format(tpl.count) }}x seen
+            </span>
+
+            <!-- Rate -->
+            {% if tpl.avg_rate_per_hour %}
+            <span class="text-[--ng-text-muted] text-[10px] font-mono tabular-nums">
+              ~{{ "%.1f" | format(tpl.avg_rate_per_hour) }}/hr
+            </span>
+            {% endif %}
+
+            <!-- First/last seen -->
+            <span class="text-[--ng-text-muted] text-[10px] font-mono">
+              {{ tpl.first_seen.strftime("%d.%m %H:%M") }} → {{ tpl.last_seen.strftime("%d.%m %H:%M") }}
+            </span>
+
+            <!-- Tags -->
+            {% if tpl.tags %}
+            {% for tag in tpl.tags.split(",") if tag.strip() %}
+            <span class="px-1.5 py-0.5 rounded text-[9px] font-mono
+              {% if tag.strip() == 'security' %}bg-red-500/15 text-red-400
+              {% elif tag.strip() == 'hardware' %}bg-orange-500/15 text-orange-400
+              {% elif tag.strip() == 'network' %}bg-blue-500/15 text-blue-400
+              {% elif tag.strip() == 'storage' %}bg-purple-500/15 text-purple-400
+              {% elif tag.strip() == 'service' %}bg-emerald-500/15 text-emerald-400
+              {% elif tag.strip() == 'auth' %}bg-yellow-500/15 text-yellow-400
+              {% elif tag.strip() == 'update' %}bg-cyan-500/15 text-cyan-400
+              {% else %}bg-slate-500/15 text-slate-400{% endif %}">
+              {{ tag.strip() }}
+            </span>
+            {% endfor %}
+            {% endif %}
+
+            <!-- Precursor badge -->
+            {% if tpl.id in precursor_map %}
+            {% set prec = precursor_map[tpl.id] %}
+            <span class="px-1.5 py-0.5 rounded text-[9px] font-mono bg-red-500/20 text-red-400 border border-red-500/30"
+                  title="This pattern precedes {{ prec.precedes_event }} with {{ (prec.confidence * 100)|int }}% confidence">
+              ⚠ precursor ({{ (prec.confidence * 100)|int }}%)
+            </span>
+            {% endif %}
+          </div>
+
+          <!-- Example message (collapsed) -->
+          {% if tpl.example %}
+          <details class="mt-2">
+            <summary class="text-[10px] text-slate-600 cursor-pointer hover:text-slate-400 transition-colors">Example message</summary>
+            <p class="text-[10px] text-slate-500 font-mono mt-1 break-all leading-relaxed">{{ tpl.example[:300] }}</p>
+          </details>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- Pagination -->
+  {% if total_pages > 1 %}
+  <div class="flex items-center justify-center gap-2 mt-6">
+    {% if page > 1 %}
+    <a href="/syslog/templates?sort={{ f_sort }}&tag={{ f_tag }}&page={{ page - 1 }}"
+       class="px-3 py-1.5 rounded-lg bg-[--ng-glass-bg] border border-[--ng-glass-border] text-slate-400 hover:text-white text-xs">&larr;</a>
+    {% endif %}
+    <span class="text-slate-500 text-xs font-mono">{{ page }} / {{ total_pages }}</span>
+    {% if page < total_pages %}
+    <a href="/syslog/templates?sort={{ f_sort }}&tag={{ f_tag }}&page={{ page + 1 }}"
+       class="px-3 py-1.5 rounded-lg bg-[--ng-glass-bg] border border-[--ng-glass-border] text-slate-400 hover:text-white text-xs">&rarr;</a>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {% else %}
+  <div class="bg-[--ng-glass-bg] border border-[--ng-glass-border] backdrop-blur-2xl rounded-xl p-12 text-center">
+    <p class="text-slate-400 font-semibold">No templates learned yet</p>
+    <p class="text-slate-500 text-sm mt-1">Templates are extracted automatically as syslog messages arrive. Check back after some logs have been processed.</p>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

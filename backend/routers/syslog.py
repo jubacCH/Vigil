@@ -148,9 +148,35 @@ async def syslog_page(
     messages = (await db.execute(query.offset((page - 1) * _PER_PAGE).limit(_PER_PAGE))).scalars().all()
     messages = _dedup_messages(messages)
 
-    # Extract structured fields for each message
+    # Extract structured fields + intelligence enrichment for each message
+    try:
+        from services.log_intelligence import extract_template, auto_tag
+        from models.log_template import LogTemplate
+        # Load noise scores for templates in this batch
+        _tpl_hashes = set()
+        for msg in messages:
+            _, h = extract_template(msg.message)
+            msg._template_hash = h
+            _tpl_hashes.add(h)
+        _noise_map = {}
+        _tags_map = {}
+        if _tpl_hashes:
+            _tpl_rows = (await db.execute(
+                select(LogTemplate.template_hash, LogTemplate.noise_score, LogTemplate.tags)
+                .where(LogTemplate.template_hash.in_(_tpl_hashes))
+            )).all()
+            for row in _tpl_rows:
+                _noise_map[row.template_hash] = row.noise_score
+                _tags_map[row.template_hash] = row.tags
+    except Exception:
+        pass
+
     for msg in messages:
         msg._fields = _extract_fields(msg.message)
+        h = getattr(msg, '_template_hash', None)
+        msg._noise_score = _noise_map.get(h, 50) if h else 50
+        db_tags = _tags_map.get(h, "") if h else ""
+        msg._tags = [t.strip() for t in db_tags.split(",") if t.strip()] if db_tags else auto_tag(msg.message)
 
     # Severity counts for header pills
     severity_counts = dict((await db.execute(
@@ -191,6 +217,44 @@ async def syslog_page(
     # Severity alert: check if error rate is spiking
     alert_spike = await _check_severity_spike(db)
 
+    # Intelligence: baseline anomalies + new templates
+    intelligence = {"anomalies": [], "new_templates": [], "precursors": []}
+    try:
+        from models.log_template import LogTemplate, PrecursorPattern
+        from services.log_intelligence import detect_baseline_anomalies
+
+        # Baseline anomalies (current hour vs learned baseline)
+        intelligence["anomalies"] = await detect_baseline_anomalies(db)
+
+        # Recently discovered templates (last 24h, noise_score < 30)
+        new_tpls = (await db.execute(
+            select(LogTemplate)
+            .where(LogTemplate.first_seen >= since, LogTemplate.noise_score < 30)
+            .order_by(LogTemplate.first_seen.desc())
+            .limit(5)
+        )).scalars().all()
+        intelligence["new_templates"] = [
+            {"template": t.template[:120], "count": t.count, "tags": t.tags,
+             "first_seen": t.first_seen.strftime("%H:%M") if t.first_seen else ""}
+            for t in new_tpls
+        ]
+
+        # Active precursors (high-confidence patterns)
+        precs = (await db.execute(
+            select(PrecursorPattern, LogTemplate)
+            .join(LogTemplate, PrecursorPattern.template_id == LogTemplate.id)
+            .where(PrecursorPattern.confidence >= 0.5)
+            .order_by(PrecursorPattern.confidence.desc())
+            .limit(5)
+        )).all()
+        intelligence["precursors"] = [
+            {"template": tpl.template[:100], "event": p.precedes_event,
+             "confidence": round(p.confidence * 100), "lead_time": p.avg_lead_time_sec}
+            for p, tpl in precs
+        ]
+    except Exception:
+        pass
+
     return templates.TemplateResponse("syslog.html", {
         "request": request,
         "active_page": "syslog",
@@ -208,6 +272,7 @@ async def syslog_page(
         "saved_views": saved_views,
         "retention_days": RETENTION_DAYS,
         "alert_spike": alert_spike,
+        "intelligence": intelligence,
         # Current filter/sort values
         "f_severity": sev,
         "f_facility": fac,
@@ -334,6 +399,9 @@ async def syslog_stream(
                     "message": (msg.get("message") or "")[:500],
                     "host_id": msg.get("host_id"),
                     "fields": _extract_fields(msg.get("message", "")),
+                    "tags": msg.get("tags", []),
+                    "noise_score": msg.get("noise_score", 50),
+                    "is_new_template": msg.get("is_new_template", False),
                 }
                 yield f"data: {json.dumps(data)}\n\n"
         except asyncio.CancelledError:
@@ -441,3 +509,123 @@ async def syslog_by_host(
         "total_pages": total_pages,
         "severity_labels": SEVERITY_LABELS,
     })
+
+
+# ── Template Browser ─────────────────────────────────────────────────────────
+
+@router.get("/templates", response_class=HTMLResponse)
+async def template_browser(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    sort: str = Query("recent"),
+    tag: str = Query(""),
+    page: int = Query(1, ge=1),
+):
+    """Browse learned log templates."""
+    from models.log_template import LogTemplate, PrecursorPattern
+
+    query = select(LogTemplate)
+    count_query = select(func.count(LogTemplate.id))
+
+    if tag:
+        query = query.where(LogTemplate.tags.contains(tag))
+        count_query = count_query.where(LogTemplate.tags.contains(tag))
+
+    sort_map = {
+        "recent": LogTemplate.last_seen.desc(),
+        "count": LogTemplate.count.desc(),
+        "noise": LogTemplate.noise_score.asc(),
+        "new": LogTemplate.first_seen.desc(),
+    }
+    query = query.order_by(sort_map.get(sort, LogTemplate.last_seen.desc()))
+
+    per_page = 50
+    total = (await db.execute(count_query)).scalar() or 0
+    total_pages = max(1, (total + per_page - 1) // per_page)
+    page = min(page, total_pages)
+
+    tpls = (await db.execute(query.offset((page - 1) * per_page).limit(per_page))).scalars().all()
+
+    # Load precursor info for these templates
+    tpl_ids = [t.id for t in tpls]
+    precursor_map = {}
+    if tpl_ids:
+        precs = (await db.execute(
+            select(PrecursorPattern)
+            .where(PrecursorPattern.template_id.in_(tpl_ids), PrecursorPattern.confidence >= 0.3)
+        )).scalars().all()
+        for p in precs:
+            precursor_map[p.template_id] = p
+
+    # All unique tags for filter
+    all_tags_raw = (await db.execute(select(LogTemplate.tags).where(LogTemplate.tags != ""))).scalars().all()
+    all_tags = sorted({t.strip() for raw in all_tags_raw for t in raw.split(",") if t.strip()})
+
+    return templates.TemplateResponse("syslog_templates.html", {
+        "request": request,
+        "active_page": "syslog",
+        "templates": tpls,
+        "precursor_map": precursor_map,
+        "total": total,
+        "page": page,
+        "total_pages": total_pages,
+        "all_tags": all_tags,
+        "f_sort": sort,
+        "f_tag": tag,
+    })
+
+
+# ── Smart Feed API ───────────────────────────────────────────────────────────
+
+@router.get("/api/smart-feed")
+async def smart_feed(
+    db: AsyncSession = Depends(get_db),
+    hours: int = Query(24),
+    min_score: int = Query(0),
+    max_noise: int = Query(30),
+):
+    """Return interesting log messages (low noise score, high severity, new templates)."""
+    from models.log_template import LogTemplate
+    from services.log_intelligence import extract_template
+
+    since = datetime.utcnow() - timedelta(hours=hours)
+
+    # Get messages
+    messages = (await db.execute(
+        select(SyslogMessage)
+        .where(SyslogMessage.timestamp >= since)
+        .order_by(SyslogMessage.timestamp.desc())
+        .limit(500)
+    )).scalars().all()
+
+    # Load template noise scores
+    tpl_scores = {}
+    tpls = (await db.execute(select(LogTemplate))).scalars().all()
+    for t in tpls:
+        tpl_scores[t.template_hash] = t.noise_score
+
+    # Score and filter messages
+    results = []
+    for msg in messages:
+        _, h = extract_template(msg.message)
+        noise = tpl_scores.get(h, 50)
+        if noise > max_noise:
+            continue
+
+        results.append({
+            "id": msg.id,
+            "timestamp": msg.timestamp.strftime("%m-%d %H:%M:%S"),
+            "severity": msg.severity,
+            "severity_label": SEVERITY_LABELS.get(msg.severity, "?"),
+            "hostname": msg.hostname or "",
+            "source_ip": msg.source_ip,
+            "app_name": msg.app_name or "",
+            "message": msg.message[:300],
+            "noise_score": noise,
+            "host_id": msg.host_id,
+        })
+
+        if len(results) >= 100:
+            break
+
+    return results

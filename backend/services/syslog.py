@@ -295,6 +295,17 @@ _FLUSH_INTERVAL = 2.0  # seconds
 
 
 async def _enqueue(parsed: dict):
+    # Run through intelligence pipeline (template extraction + tagging)
+    try:
+        from services.log_intelligence import process_message
+        enrichment = process_message(parsed.get("message", ""), parsed.get("severity"))
+        parsed["template_hash"] = enrichment["template_hash"]
+        parsed["tags"] = enrichment["tags"]
+        parsed["noise_score"] = enrichment["noise_score"]
+        parsed["is_new_template"] = enrichment["is_new_template"]
+    except Exception:
+        pass  # intelligence is optional, never block ingestion
+
     # Broadcast to live tail subscribers
     for q in _subscribers[:]:
         try:
@@ -401,6 +412,14 @@ async def start_syslog_server(udp_port: int = 1514, tcp_port: int = 1514):
 
     # Initial host cache load
     await _refresh_host_cache()
+
+    # Load log intelligence template cache
+    try:
+        from services.log_intelligence import load_template_cache
+        async with AsyncSessionLocal() as db:
+            await load_template_cache(db)
+    except Exception as e:
+        log.warning("Failed to load template cache: %s", e)
 
     # UDP
     _udp_transport, _ = await loop.create_datagram_endpoint(

@@ -26,6 +26,7 @@ from models.ping import PingHost, PingResult
 from models.integration import IntegrationConfig, Snapshot
 from models.syslog import SyslogMessage
 from models.incident import Incident, IncidentEvent
+from models.log_template import LogTemplate, HostBaseline, PrecursorPattern
 
 
 async def init_db():
@@ -69,5 +70,6 @@ __all__ = [
     "IntegrationConfig", "Snapshot",
     "SyslogMessage",
     "Incident", "IncidentEvent",
+    "LogTemplate", "HostBaseline", "PrecursorPattern",
     "init_db",
 ]

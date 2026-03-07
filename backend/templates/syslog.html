@@ -78,6 +78,78 @@
     <canvas id="rateChart" height="45"></canvas>
   </div>
 
+  {# ── Intelligence Panel ─────────────────────────────────────────────── #}
+  {% if intelligence and (intelligence.anomalies or intelligence.new_templates or intelligence.precursors) %}
+  <div class="glass-card !rounded-xl !p-3 mb-4 !border-indigo-500/20 !bg-indigo-500/[0.03]">
+    <div class="flex items-center gap-2 mb-2">
+      <svg class="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
+      </svg>
+      <span class="text-indigo-400 text-xs font-display tracking-wider uppercase">Intelligence</span>
+      <a href="/syslog/templates" class="ml-auto text-[10px] text-indigo-400/60 hover:text-indigo-400 transition-colors font-mono">
+        Browse templates &rarr;
+      </a>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+
+      {# Baseline anomalies #}
+      {% if intelligence.anomalies %}
+      <div>
+        <p class="text-[10px] text-slate-500 uppercase tracking-wider mb-1.5">Rate Anomalies</p>
+        {% for a in intelligence.anomalies %}
+        <div class="flex items-center gap-2 text-xs mb-1">
+          <span class="px-1.5 py-0.5 rounded text-[9px] font-mono
+            {% if a.type == 'silent' %}bg-yellow-500/15 text-yellow-400{% else %}bg-red-500/15 text-red-400{% endif %}">
+            {% if a.type == 'silent' %}SILENT{% else %}SPIKE{% endif %}
+          </span>
+          <span class="text-[--ng-text-secondary] font-mono truncate">{{ a.source_ip }}</span>
+          <span class="text-[--ng-text-muted] text-[10px] font-mono ml-auto shrink-0">
+            {% if a.type == 'silent' %}0{% else %}{{ a.current_count }}{% endif %} / ~{{ a.expected }}/hr
+          </span>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      {# New templates #}
+      {% if intelligence.new_templates %}
+      <div>
+        <p class="text-[10px] text-slate-500 uppercase tracking-wider mb-1.5">New Patterns</p>
+        {% for t in intelligence.new_templates %}
+        <div class="mb-1.5">
+          <p class="text-[10px] text-[--ng-text-secondary] font-mono truncate leading-relaxed" title="{{ t.template }}">{{ t.template[:80] }}</p>
+          <div class="flex items-center gap-1.5 mt-0.5">
+            <span class="text-[9px] text-emerald-400 font-mono">NEW {{ t.first_seen }}</span>
+            <span class="text-[9px] text-[--ng-text-muted] font-mono">{{ t.count }}x</span>
+            {% for tag in t.tags.split(",") if tag.strip() %}
+            <span class="px-1 py-0 rounded text-[8px] font-mono bg-indigo-500/15 text-indigo-400">{{ tag.strip() }}</span>
+            {% endfor %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      {# Precursors #}
+      {% if intelligence.precursors %}
+      <div>
+        <p class="text-[10px] text-slate-500 uppercase tracking-wider mb-1.5">Failure Precursors</p>
+        {% for p in intelligence.precursors %}
+        <div class="mb-1.5">
+          <p class="text-[10px] text-[--ng-text-secondary] font-mono truncate" title="{{ p.template }}">{{ p.template[:80] }}</p>
+          <div class="flex items-center gap-2 mt-0.5">
+            <span class="px-1 py-0 rounded text-[8px] font-mono bg-red-500/15 text-red-400">{{ p.confidence }}% → {{ p.event }}</span>
+            <span class="text-[9px] text-[--ng-text-muted] font-mono">~{{ (p.lead_time / 60)|round(1) }}min before</span>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+    </div>
+  </div>
+  {% endif %}
+
   {# ── Filter bar ────────────────────────────────────────────────────── #}
   <form method="get" action="/syslog" id="syslog-filter"
         class="glass-card !rounded-xl !p-3 flex flex-wrap items-center gap-2.5 mb-4">
@@ -301,9 +373,17 @@
               <span class="px-1.5 py-0.5 rounded bg-white/5 text-[--ng-text-secondary]">{{ msg.app_name }}</span>
               {% endif %}
             </td>
-            <td class="px-4 py-2 text-[--ng-text-primary] text-xs font-mono break-all">
+            <td class="px-4 py-2 text-xs font-mono break-all">
               <div class="flex items-center gap-2">
-                <span class="line-clamp-2 flex-1" title="{{ msg.message }}">{{ msg.message[:500] }}</span>
+                {% for tag in (msg._tags or [])[:2] %}
+                <span class="shrink-0 px-1 py-0 rounded text-[8px]
+                  {% if tag == 'security' %}bg-red-500/15 text-red-400
+                  {% elif tag == 'hardware' %}bg-orange-500/15 text-orange-400
+                  {% elif tag == 'network' %}bg-blue-500/15 text-blue-400
+                  {% elif tag == 'auth' %}bg-yellow-500/15 text-yellow-400
+                  {% else %}bg-indigo-500/15 text-indigo-400{% endif %}">{{ tag }}</span>
+                {% endfor %}
+                <span class="line-clamp-2 flex-1 text-[--ng-text-primary] {% if (msg._noise_score or 50) > 70 %}opacity-40{% endif %}" title="{{ msg.message }}">{{ msg.message[:500] }}</span>
                 {% if dedup > 1 %}
                 <span class="shrink-0 px-1.5 py-0.5 rounded-full bg-purple-500/15 text-purple-400 text-[10px] font-bold tabular-nums" title="Repeated {{ dedup }} times">
                   x{{ dedup }}
@@ -481,7 +561,11 @@
           <td class="px-4 py-2 text-[--ng-text-secondary] text-xs truncate max-w-[150px]">${msg.hostname || '...'}</td>
           <td class="px-4 py-2 text-[--ng-text-muted] text-xs font-mono truncate max-w-[120px]">${msg.source_ip}</td>
           <td class="px-4 py-2 text-[--ng-text-muted] text-xs truncate max-w-[100px]">${msg.app_name ? '<span class="px-1.5 py-0.5 rounded bg-white/5 text-[--ng-text-secondary]">'+msg.app_name+'</span>' : ''}</td>
-          <td class="px-4 py-2 text-[--ng-text-primary] text-xs font-mono break-all"><span class="line-clamp-2">${msg.message}</span></td>
+          <td class="px-4 py-2 text-xs font-mono break-all">
+            ${msg.is_new_template ? '<span class="px-1 py-0 rounded text-[8px] bg-emerald-500/20 text-emerald-400 mr-1">NEW</span>' : ''}
+            ${(msg.tags||[]).map(t => '<span class="px-1 py-0 rounded text-[8px] bg-indigo-500/15 text-indigo-400 mr-0.5">' + t + '</span>').join('')}
+            <span class="text-[--ng-text-primary] line-clamp-2 ${msg.noise_score > 70 ? 'opacity-40' : ''}">${msg.message}</span>
+          </td>
         `;
         const tbody = document.getElementById('live-rows');
         tbody.insertBefore(tr, tbody.firstChild);

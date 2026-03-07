@@ -283,6 +283,12 @@ async def run_correlation():
     await _run()
 
 
+async def run_log_intelligence():
+    """Run the log intelligence engine (template flush, baselines, precursors)."""
+    from services.log_intelligence import run_intelligence
+    await run_intelligence()
+
+
 async def start_scheduler():
     """Read intervals from DB, then register and start all jobs."""
     from database import get_setting, SpeedtestConfig
@@ -308,6 +314,8 @@ async def start_scheduler():
                       id="ssl_expiry", replace_existing=True)
     scheduler.add_job(cleanup_old_results, "cron", hour=3, minute=0,
                       id="cleanup", replace_existing=True)
+    scheduler.add_job(run_log_intelligence, "interval", seconds=30,
+                      id="log_intelligence", replace_existing=True)
     scheduler.start()
     logger.info("Scheduler started (ping=%ds, integrations=%ds, speedtest=%dm)",
                 ping_interval, proxmox_interval, st_minutes)
