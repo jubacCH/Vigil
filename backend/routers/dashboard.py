@@ -346,6 +346,43 @@ async def dashboard(request: Request, db: AsyncSession = Depends(get_db)):
         ping_host_map[h.hostname] = h.id
         ping_host_map.setdefault(h.name, h.id)
 
+    # ── Build topology tree ──────────────────────────────────────────────────
+    # Map host id -> parent_id using: 1) DB parent_id, 2) Proxmox VM/LXC → node
+    topology: dict[int, int | None] = {}  # child_id → parent_id
+    host_by_id = {h.id: h for h in all_ph}
+
+    # First pass: use DB parent_id
+    for h in all_ph:
+        topology[h.id] = getattr(h, 'parent_id', None)
+
+    # Second pass: auto-detect Proxmox VM/LXC → Proxmox node relationships
+    # Find all Proxmox node hostnames in PingHosts
+    px_node_names: set[str] = set()
+    for cluster in proxmox_clusters:
+        if _use_new_px:
+            snap = px_snapshots.get(cluster.id)
+            if not snap or not snap.ok or not snap.data_json:
+                continue
+            d = json.loads(snap.data_json)
+        else:
+            continue
+        for node_info in d.get("nodes", []):
+            px_node_names.add(node_info.get("node", ""))
+        # Map VM/LXC name → node name
+        for g in d.get("vms", []) + d.get("containers", []):
+            guest_name = (g.get("name") or "").strip()
+            node_name = (g.get("node") or "").strip()
+            if not guest_name or not node_name:
+                continue
+            # Find the PingHost for this guest
+            guest_ph_id = ping_host_map.get(guest_name)
+            # Find the PingHost for the Proxmox node
+            node_ph_id = ping_host_map.get(node_name)
+            if guest_ph_id and node_ph_id and guest_ph_id != node_ph_id:
+                # Only auto-link if no manual parent_id is set
+                if topology.get(guest_ph_id) is None:
+                    topology[guest_ph_id] = node_ph_id
+
     # ── Integration health ──────────────────────────────────────────────────
     integration_health = []
 
@@ -451,5 +488,6 @@ async def dashboard(request: Request, db: AsyncSession = Depends(get_db)):
         "warnings": warnings,
         "integration_health": integration_health,
         "active_incidents": active_incidents,
+        "topology": topology,
         "active_page": "dashboard",
     })

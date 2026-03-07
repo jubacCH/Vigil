@@ -60,8 +60,10 @@ class PingHost(Base):
     source               = Column(String, default="manual") # manual | phpipam | proxmox | unifi
     source_detail        = Column(String, nullable=True)    # e.g. cluster name or phpIPAM subnet
     mac_address          = Column(String, nullable=True)    # optional MAC, populated by auto-import
+    parent_id            = Column(Integer, ForeignKey("ping_hosts.id"), nullable=True)  # topology: parent device
     created_at           = Column(DateTime, default=datetime.utcnow)
     results = relationship("PingResult", back_populates="host", cascade="all, delete-orphan")
+    children = relationship("PingHost", foreign_keys="PingHost.parent_id", viewonly=True)
 
 
 class PingResult(Base):
@@ -481,6 +483,7 @@ async def init_db():
             ("source",               "TEXT DEFAULT 'manual'"),
             ("source_detail",        "TEXT"),
             ("mac_address",          "TEXT"),
+            ("parent_id",            "INTEGER REFERENCES ping_hosts(id)"),
         ]
         for col, definition in migrations:
             try:

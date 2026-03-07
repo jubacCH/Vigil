@@ -422,6 +422,9 @@ async def ping_detail(host_id: int, request: Request, db: AsyncSession = Depends
         "proxmox_history": proxmox_history,
         "unifi_client": unifi_client,
         "syslog_count": syslog_count,
+        "all_hosts": (await db.execute(
+            select(PingHost).where(PingHost.id != host.id).order_by(PingHost.name)
+        )).scalars().all(),
         "active_page": "ping",
         "saved": request.query_params.get("saved"),
         "active_tab": request.query_params.get("tab", "info"),
@@ -459,6 +462,7 @@ async def edit_ping_host(
     check_types: List[str] = Form(default=["icmp"]),
     port: str = Form(""),
     latency_threshold_ms: str = Form(""),
+    parent_id: str = Form(""),
     db: AsyncSession = Depends(get_db),
 ):
     host = await db.get(PingHost, host_id)
@@ -468,6 +472,7 @@ async def edit_ping_host(
         host.check_type = ",".join(t.strip() for t in check_types if t.strip()) or "icmp"
         host.port = int(port) if port.strip() else None
         host.latency_threshold_ms = float(latency_threshold_ms) if latency_threshold_ms.strip() else None
+        host.parent_id = int(parent_id) if parent_id.strip() else None
         await db.commit()
     return RedirectResponse(url=f"/ping/{host_id}?tab=info&saved=1", status_code=303)
 

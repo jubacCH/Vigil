@@ -162,6 +162,15 @@
                    min="1" step="1"
                    class="w-full ng-input">
           </div>
+          <div>
+            <label class="block text-xs font-medium text-slate-400 mb-1.5">Parent device <span class="text-slate-600">(topology map)</span></label>
+            <select name="parent_id" class="w-full ng-input">
+              <option value="">— None (root) —</option>
+              {% for h in all_hosts %}
+              <option value="{{ h.id }}" {% if host.parent_id == h.id %}selected{% endif %}>{{ h.name }} ({{ h.hostname }})</option>
+              {% endfor %}
+            </select>
+          </div>
           <div class="flex gap-2 pt-1">
             <button type="submit"
                     class="ng-btn ng-btn-primary">
