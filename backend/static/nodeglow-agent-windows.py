@@ -20,17 +20,20 @@ Requires: Python 3.8+ (no additional packages needed)
 """
 import argparse
 import ctypes
+import hashlib
 import json
 import os
 import platform
+import shutil
 import socket
 import subprocess
 import sys
+import tempfile
 import time
 import urllib.error
 import urllib.request
 
-__version__ = "1.1.0"
+__version__ = "1.2.0"
 
 
 # ── WMI helpers via PowerShell ───────────────────────────────────────────────
@@ -343,6 +346,91 @@ def _load_config_file():
 _file_config = _load_config_file()
 
 
+# ── Auto-update ──────────────────────────────────────────────────────────────
+
+def _get_own_hash():
+    """SHA256 of our own executable or script file."""
+    if getattr(sys, 'frozen', False):
+        path = sys.executable
+    else:
+        path = os.path.abspath(__file__)
+    try:
+        with open(path, "rb") as f:
+            return hashlib.sha256(f.read()).hexdigest()
+    except Exception:
+        return ""
+
+
+def check_and_update(server):
+    """Check server for a newer agent version; download + replace + restart if found."""
+    try:
+        url = f"{server.rstrip('/')}/api/agent/version/windows"
+        req = urllib.request.Request(url, method="GET")
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read())
+        remote_hash = data.get("hash", "")
+        if not remote_hash:
+            return False
+
+        local_hash = _get_own_hash()
+        if local_hash == remote_hash:
+            return False
+
+        print(f"[nodeglow-agent] Update available (local={local_hash[:12]}... remote={remote_hash[:12]}...)")
+
+        # Download new version to temp file
+        download_url = f"{server.rstrip('/')}/agents/download/windows"
+        if getattr(sys, 'frozen', False):
+            own_path = sys.executable
+        else:
+            own_path = os.path.abspath(__file__)
+
+        tmp_fd, tmp_path = tempfile.mkstemp(suffix=".exe" if getattr(sys, 'frozen', False) else ".py",
+                                             dir=os.path.dirname(own_path))
+        os.close(tmp_fd)
+
+        try:
+            urllib.request.urlretrieve(download_url, tmp_path)
+
+            # Verify the download matches the expected hash
+            with open(tmp_path, "rb") as f:
+                dl_hash = hashlib.sha256(f.read()).hexdigest()
+            if dl_hash != remote_hash:
+                print(f"[nodeglow-agent] Download hash mismatch, aborting update", file=sys.stderr)
+                os.remove(tmp_path)
+                return False
+
+            # On Windows: rename old → .old, move new → original, then restart
+            old_backup = own_path + ".old"
+            if os.path.exists(old_backup):
+                try:
+                    os.remove(old_backup)
+                except Exception:
+                    pass
+
+            os.rename(own_path, old_backup)
+            shutil.move(tmp_path, own_path)
+
+            print(f"[nodeglow-agent] Updated successfully, restarting...")
+
+            # Restart: launch new process, exit current
+            if getattr(sys, 'frozen', False):
+                subprocess.Popen([own_path], creationflags=0x00000008)  # DETACHED_PROCESS
+            else:
+                subprocess.Popen([sys.executable, own_path], creationflags=0x00000008)
+            sys.exit(0)
+
+        except Exception as e:
+            print(f"[nodeglow-agent] Update failed: {e}", file=sys.stderr)
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+            return False
+
+    except Exception as e:
+        print(f"[nodeglow-agent] Update check failed: {e}", file=sys.stderr)
+        return False
+
+
 # ── Main ─────────────────────────────────────────────────────────────────────
 
 def main():
@@ -372,6 +460,10 @@ def main():
 
     print(f"[nodeglow-agent] v{__version__} | {socket.gethostname()} | Windows {platform.version()}")
     print(f"[nodeglow-agent] reporting to {args.server} every {args.interval}s")
+    print(f"[nodeglow-agent] auto-update check every 5 minutes")
+
+    update_interval = 300  # 5 minutes
+    last_update_check = 0
 
     while True:
         try:
@@ -384,6 +476,13 @@ def main():
             print(f"[nodeglow-agent] error: {e}", file=sys.stderr)
         if args.once:
             break
+
+        # Check for updates every 5 minutes
+        now = time.time()
+        if now - last_update_check >= update_interval:
+            last_update_check = now
+            check_and_update(args.server)
+
         time.sleep(args.interval)
 
 

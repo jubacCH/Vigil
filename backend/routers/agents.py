@@ -1,10 +1,12 @@
 """
 Agent router — register agents, receive metrics, serve UI + WebSocket live feed.
 """
+import hashlib
 import json
 import logging
 import secrets
 from datetime import datetime
+from pathlib import Path
 
 from fastapi import APIRouter, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
@@ -484,6 +486,39 @@ async def agent_download(request: Request, platform: str):
                             filename="nodeglow-agent.exe", media_type="application/octet-stream")
     return FileResponse("static/nodeglow-agent-linux.py",
                         filename="nodeglow-agent-linux.py", media_type="text/x-python")
+
+
+# ── API: Agent version check (for auto-update) ────────────────────────────────
+
+_agent_file_cache: dict[str, tuple[str, float]] = {}  # platform -> (hash, mtime)
+
+
+def _get_agent_hash(platform: str) -> str:
+    """Get SHA256 hash of the current agent binary/script. Cached by mtime."""
+    if platform == "windows":
+        path = Path("static/nodeglow-agent.exe")
+    else:
+        path = Path("static/nodeglow-agent-linux.py")
+
+    if not path.exists():
+        return ""
+
+    mtime = path.stat().st_mtime
+    cached = _agent_file_cache.get(platform)
+    if cached and cached[1] == mtime:
+        return cached[0]
+
+    h = hashlib.sha256(path.read_bytes()).hexdigest()
+    _agent_file_cache[platform] = (h, mtime)
+    return h
+
+
+@router.get("/api/agent/version/{platform}")
+async def agent_version(platform: str):
+    """Returns the current agent version hash. Agents poll this to check for updates."""
+    if platform not in ("windows", "linux"):
+        return JSONResponse({"error": "Invalid platform"}, status_code=400)
+    return {"hash": _get_agent_hash(platform)}
 
 
 # ── API: List agents (JSON) ─────────────────────────────────────────────────

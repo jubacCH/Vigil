@@ -15,17 +15,20 @@ Usage:
     python3 nodeglow-agent-linux.py --install --server http://nodeglow:8000 --token YOUR_TOKEN
 """
 import argparse
+import hashlib
 import json
 import os
 import platform
+import shutil
 import socket
 import subprocess
 import sys
+import tempfile
 import time
 import urllib.error
 import urllib.request
 
-__version__ = "1.1.0"
+__version__ = "1.2.0"
 
 
 # ── Collectors ───────────────────────────────────────────────────────────────
@@ -344,6 +347,72 @@ def install_systemd(server, token, interval):
     print(f"  Logs:   journalctl -u nodeglow-agent -f")
 
 
+# ── Auto-update ──────────────────────────────────────────────────────────────
+
+def _get_own_hash():
+    """SHA256 of our own script file."""
+    path = os.path.abspath(__file__)
+    try:
+        with open(path, "rb") as f:
+            return hashlib.sha256(f.read()).hexdigest()
+    except Exception:
+        return ""
+
+
+def check_and_update(server):
+    """Check server for a newer agent version; download + replace + restart if found."""
+    try:
+        url = f"{server.rstrip('/')}/api/agent/version/linux"
+        req = urllib.request.Request(url, method="GET")
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read())
+        remote_hash = data.get("hash", "")
+        if not remote_hash:
+            return False
+
+        local_hash = _get_own_hash()
+        if local_hash == remote_hash:
+            return False
+
+        print(f"[nodeglow-agent] Update available (local={local_hash[:12]}... remote={remote_hash[:12]}...)")
+
+        # Download new version to temp file
+        own_path = os.path.abspath(__file__)
+        tmp_fd, tmp_path = tempfile.mkstemp(suffix=".py", dir=os.path.dirname(own_path))
+        os.close(tmp_fd)
+
+        try:
+            download_url = f"{server.rstrip('/')}/agents/download/linux"
+            urllib.request.urlretrieve(download_url, tmp_path)
+
+            # Verify the download matches the expected hash
+            with open(tmp_path, "rb") as f:
+                dl_hash = hashlib.sha256(f.read()).hexdigest()
+            if dl_hash != remote_hash:
+                print(f"[nodeglow-agent] Download hash mismatch, aborting update", file=sys.stderr)
+                os.remove(tmp_path)
+                return False
+
+            # Replace: atomic rename
+            os.chmod(tmp_path, 0o755)
+            os.replace(tmp_path, own_path)
+
+            print(f"[nodeglow-agent] Updated successfully, restarting...")
+
+            # Restart via exec (replaces current process)
+            os.execv(sys.executable, [sys.executable, own_path])
+
+        except Exception as e:
+            print(f"[nodeglow-agent] Update failed: {e}", file=sys.stderr)
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+            return False
+
+    except Exception as e:
+        print(f"[nodeglow-agent] Update check failed: {e}", file=sys.stderr)
+        return False
+
+
 # ── Config file support ───────────────────────────────────────────────────────
 
 def _load_config_file():
@@ -390,6 +459,10 @@ def main():
 
     print(f"[nodeglow-agent] v{__version__} | {socket.gethostname()} | Linux {platform.release()}")
     print(f"[nodeglow-agent] reporting to {args.server} every {args.interval}s")
+    print(f"[nodeglow-agent] auto-update check every 5 minutes")
+
+    update_interval = 300  # 5 minutes
+    last_update_check = 0
 
     while True:
         try:
@@ -403,6 +476,13 @@ def main():
             print(f"[nodeglow-agent] error: {e}", file=sys.stderr)
         if args.once:
             break
+
+        # Check for updates every 5 minutes
+        now = time.time()
+        if now - last_update_check >= update_interval:
+            last_update_check = now
+            check_and_update(args.server)
+
         time.sleep(args.interval)
 
 
