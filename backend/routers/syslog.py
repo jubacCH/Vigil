@@ -28,16 +28,20 @@ _SORT_COLUMNS = {
 async def syslog_page(
     request: Request,
     db: AsyncSession = Depends(get_db),
-    severity: int = Query(None),
-    facility: int = Query(None),
-    host: str = Query(None),
-    app: str = Query(None),
-    q: str = Query(None),
+    severity: str = Query(""),
+    facility: str = Query(""),
+    host: str = Query(""),
+    app: str = Query(""),
+    q: str = Query(""),
     hours: int = Query(24),
     page: int = Query(1, ge=1),
     sort: str = Query("time"),
     order: str = Query("desc"),
 ):
+    # Convert empty strings to None for optional int filters
+    sev = int(severity) if severity not in ("", None) else None
+    fac = int(facility) if facility not in ("", None) else None
+
     since = datetime.utcnow() - timedelta(hours=hours)
 
     # Base query
@@ -45,13 +49,13 @@ async def syslog_page(
     count_query = select(func.count(SyslogMessage.id)).where(SyslogMessage.timestamp >= since)
 
     # Filters
-    if severity is not None:
-        query = query.where(SyslogMessage.severity == severity)
-        count_query = count_query.where(SyslogMessage.severity == severity)
+    if sev is not None:
+        query = query.where(SyslogMessage.severity == sev)
+        count_query = count_query.where(SyslogMessage.severity == sev)
 
-    if facility is not None:
-        query = query.where(SyslogMessage.facility == facility)
-        count_query = count_query.where(SyslogMessage.facility == facility)
+    if fac is not None:
+        query = query.where(SyslogMessage.facility == fac)
+        count_query = count_query.where(SyslogMessage.facility == fac)
 
     if host:
         host_filter = (
@@ -131,8 +135,8 @@ async def syslog_page(
         "known_hosts": known_hosts,
         "known_apps": known_apps,
         # Current filter/sort values
-        "f_severity": severity,
-        "f_facility": facility,
+        "f_severity": sev,
+        "f_facility": fac,
         "f_host": host or "",
         "f_app": app or "",
         "f_q": q or "",
