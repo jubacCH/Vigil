@@ -156,38 +156,48 @@ async def ping_list(request: Request, db: AsyncSession = Depends(get_db)):
                 uptime_map[host_id] = {}
             uptime_map[host_id][key] = round((ok or 0) / total * 100, 1) if total else None
 
+    # Batch: latest result per host (1 query)
+    from sqlalchemy import and_
+    latest_subq = (
+        select(PingResult.host_id, func.max(PingResult.id).label("max_id"))
+        .group_by(PingResult.host_id)
+    ).subquery()
+    latest_rows = (await db.execute(
+        select(PingResult).join(latest_subq, PingResult.id == latest_subq.c.max_id)
+    )).scalars().all()
+    latest_by_host = {r.host_id: r for r in latest_rows}
+
+    # Batch: 30-day heatmap data (1 query — daily aggregates instead of raw rows)
+    heatmap_rows = (await db.execute(
+        select(
+            PingResult.host_id,
+            func.date(PingResult.timestamp).label("day"),
+            func.count().label("total"),
+            func.sum(cast(PingResult.success, Integer)).label("ok"),
+        )
+        .where(PingResult.timestamp >= window_30d)
+        .group_by(PingResult.host_id, func.date(PingResult.timestamp))
+    )).all()
+    heatmap_agg: dict[int, dict[str, tuple]] = {}
+    for row in heatmap_rows:
+        heatmap_agg.setdefault(row.host_id, {})[str(row.day)] = (row.total, row.ok or 0)
+
     for host in hosts:
-        latest_q = await db.execute(
-            select(PingResult)
-            .where(PingResult.host_id == host.id)
-            .order_by(PingResult.timestamp.desc())
-            .limit(1)
-        )
-        latest_result = latest_q.scalar_one_or_none()
+        latest_result = latest_by_host.get(host.id)
+        um = uptime_map.get(host.id, {})
+        uptime = um.get("h24") or 0
 
-        total = await db.execute(
-            select(func.count()).where(
-                PingResult.host_id == host.id,
-                PingResult.timestamp >= window_24h,
-            )
-        )
-        success = await db.execute(
-            select(func.count()).where(
-                PingResult.host_id == host.id,
-                PingResult.timestamp >= window_24h,
-                PingResult.success == True,
-            )
-        )
-        total_c = total.scalar() or 0
-        success_c = success.scalar() or 0
-        uptime = round((success_c / total_c * 100) if total_c > 0 else 0, 1)
-
-        # 30-day heatmap
-        results_30d_q = await db.execute(
-            select(PingResult)
-            .where(PingResult.host_id == host.id, PingResult.timestamp >= window_30d)
-        )
-        heatmap = _heatmap_30d(results_30d_q.scalars().all())
+        # Build heatmap from pre-aggregated daily data
+        heatmap = []
+        agg = heatmap_agg.get(host.id, {})
+        for i in range(30):
+            d = (now - timedelta(days=29 - i)).date()
+            day_data = agg.get(str(d))
+            if day_data:
+                total_d, ok_d = day_data
+                heatmap.append(round(ok_d / total_d * 100, 1) if total_d > 0 else None)
+            else:
+                heatmap.append(None)
 
         host_data.append({
             "host": host,
