@@ -29,7 +29,6 @@ async def lifespan(app: FastAPI):
     # Start syslog receiver (port from DB setting, fallback to env/1514)
     from services.syslog import start_syslog_server, stop_syslog_server
     from database import AsyncSessionLocal, get_setting as _get_setting
-    import os
     try:
         async with AsyncSessionLocal() as _db:
             syslog_port = int(await _get_setting(_db, "syslog_port", ""))
