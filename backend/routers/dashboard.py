@@ -174,6 +174,7 @@ async def dashboard(request: Request, db: AsyncSession = Depends(get_db)):
             })
 
         # Health score for gravity well (0.0 = perfect, 1.0 = critical)
+        # Granular: orbit grows progressively as metrics approach thresholds
         _online = latest_row.success if latest_row else None
         _lat = latest_row.latency_ms if latest_row else None
         if _online is False:
@@ -183,18 +184,35 @@ async def dashboard(request: Request, db: AsyncSession = Depends(get_db)):
         elif _online is None:
             health_score = 0.8
         else:
+            import math
             score = 0.0
-            # Latency vs threshold (weight 0.4)
+            # Latency vs threshold (weight 0.4) — exponential curve
+            # <50% threshold: barely moves | 50-80%: starts drifting | 80-100%: rapid | >100%: max
             if _lat is not None and effective_threshold:
-                score += min(_lat / effective_threshold, 2.0) * 0.2
+                ratio = _lat / effective_threshold  # 0.0 → 2.0+
+                if ratio <= 0.5:
+                    lat_score = ratio * 0.1           # 0→0.05 (barely visible)
+                elif ratio <= 0.8:
+                    lat_score = 0.05 + (ratio - 0.5) / 0.3 * 0.15  # 0.05→0.20
+                elif ratio <= 1.0:
+                    lat_score = 0.20 + (ratio - 0.8) / 0.2 * 0.20  # 0.20→0.40
+                else:
+                    lat_score = 0.40                  # over threshold = max
+                score += lat_score
             elif _lat is not None:
-                score += min(_lat / 100.0, 1.0) * 0.2
-            # Uptime deficit (weight 0.3): 100% → 0, 95% → 0.15, 90% → 0.3
-            score += (1 - uptime_pct / 100.0) * 0.3
-            # Packet loss from sparkline (weight 0.3)
+                score += min(_lat / 200.0, 0.4)  # no threshold: scale to 200ms
+            # Uptime deficit (weight 0.35) — exponential below 99%
+            # 100%→0 | 99.5%→0.02 | 99%→0.05 | 97%→0.15 | 95%→0.25 | 90%→0.35
+            deficit = 1 - uptime_pct / 100.0  # 0.0 → 1.0
+            uptime_score = min((deficit ** 0.5) * 0.35, 0.35) if deficit > 0 else 0.0
+            score += uptime_score
+            # Packet loss from sparkline (weight 0.25)
             if sparkline:
                 losses = sum(1 for v in sparkline if v is None)
-                score += (losses / len(sparkline)) * 0.3
+                loss_ratio = losses / len(sparkline)
+                # Any loss is significant: 1 loss → noticeable, >10% → strong pull
+                loss_score = min((loss_ratio ** 0.6) * 0.25, 0.25) if loss_ratio > 0 else 0.0
+                score += loss_score
             health_score = round(min(score, 1.0), 3)
 
         host_stats.append({
