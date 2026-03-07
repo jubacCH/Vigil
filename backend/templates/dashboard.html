@@ -312,7 +312,7 @@
 
     {# ── GRAVITY WELL ─────────────────────────────────────────────────── #}
     {% if w.id == 'gravity' %}
-    <div class="grid-stack-item" gs-id="gravity" gs-x="{{ w.x }}" gs-y="{{ w.y }}" gs-w="{{ w.w }}" gs-h="{{ w.h }}" gs-min-h="4" gs-min-w="6">
+    <div class="grid-stack-item" gs-id="gravity" gs-x="{{ w.x }}" gs-y="{{ w.y }}" gs-w="{{ w.w }}" gs-h="{{ w.h }}" gs-min-h="2" gs-min-w="3">
       <div class="grid-stack-item-content relative glass-card-static !p-0 flex flex-col" style="overflow:hidden!important">
         {{ widget_remove_btn() }}
         {% if host_stats %}
@@ -1083,7 +1083,7 @@
   const WIDGET_META = {
     integrations: { label: 'Integrations', icon: 'M13 10V3L4 14h7v7l9-11h-7z', defW: 6, defH: 2, minW: 3, minH: 2 },
     syslog:       { label: 'Syslog',       icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z', defW: 6, defH: 2, minW: 4, minH: 2 },
-    gravity:      { label: 'Gravity Well', icon: 'M21 12a9 9 0 11-18 0 9 9 0 0118 0z', defW: 12, defH: 6, minW: 6, minH: 4 },
+    gravity:      { label: 'Gravity Well', icon: 'M21 12a9 9 0 11-18 0 9 9 0 0118 0z', defW: 12, defH: 6, minW: 3, minH: 2 },
     offline:      { label: 'Offline Hosts',icon: 'M18.364 5.636a9 9 0 010 12.728M5.636 18.364a9 9 0 010-12.728', defW: 12, defH: 3, minW: 4, minH: 2 },
     hosts:        { label: 'All Hosts',    icon: 'M4 6h16M4 10h16M4 14h16M4 18h16', defW: 12, defH: 4, minW: 4, minH: 2 },
     proxmox:      { label: 'Proxmox',      icon: 'M5 12h14M12 5l7 7-7 7', defW: 12, defH: 3, minW: 4, minH: 2 },
