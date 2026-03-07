@@ -4,6 +4,7 @@
 {% block content %}
 {% set maint_count = host_stats | selectattr('host.maintenance') | list | length %}
 {% set offline_hosts = host_stats | selectattr('online', 'equalto', false) | rejectattr('host.maintenance') | list %}
+{% set unknown_hosts = host_stats | selectattr('online', 'none') | rejectattr('host.maintenance') | list %}
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/gridstack@10/dist/gridstack.min.css"/>
 <style>
   .grid-stack { min-height: 100px; }
@@ -36,6 +37,11 @@
       <div class="glass-card-static flex items-center gap-2.5 px-4 py-2.5 !border-ng-critical/30 !bg-ng-critical/[0.06]">
         <span class="w-2.5 h-2.5 rounded-full bg-ng-critical node-critical shrink-0"></span>
         <span class="text-ng-critical font-display font-normal text-sm tracking-wider">{{ offline_hosts|length }} OFFLINE</span>
+      </div>
+      {% elif online_count == 0 and total_count > 0 %}
+      <div class="glass-card-static flex items-center gap-2.5 px-4 py-2.5 !border-ng-warning/25 !bg-ng-warning/[0.06]">
+        <span class="w-2.5 h-2.5 rounded-full bg-ng-warning shrink-0" style="animation: pulse-soft 2s ease-in-out infinite"></span>
+        <span class="text-ng-warning font-display font-normal text-sm tracking-wider">PENDING</span>
       </div>
       {% else %}
       <div class="glass-card-static flex items-center gap-2.5 px-4 py-2.5 !border-ng-success/25 !bg-ng-success/[0.06]">

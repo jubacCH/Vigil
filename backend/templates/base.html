@@ -441,6 +441,15 @@
           if (!html) return;
           const doc = new DOMParser().parseFromString(html, 'text/html');
 
+          // Cleanup previous page state before DOM swap
+          if (window._gravityAnim) { cancelAnimationFrame(window._gravityAnim); window._gravityAnim = null; }
+          if (window._gravityObserver) { window._gravityObserver.disconnect(); window._gravityObserver = null; }
+          if (window._gsGridPrev) { try { window._gsGridPrev.destroy(true); } catch(e) {} window._gsGridPrev = null; }
+          if (window._pageIntervals) window._pageIntervals.forEach(clearInterval);
+          if (window._pageTimeouts) window._pageTimeouts.forEach(clearTimeout);
+          window._pageIntervals = [];
+          window._pageTimeouts = [];
+
           const newNav     = doc.querySelector('nav');
           const newMain    = doc.querySelector('main');
           const newScripts = doc.getElementById('page-scripts');
@@ -452,42 +461,57 @@
           document.title = doc.title;
           history.pushState({url}, '', url);
 
-          // Cleanup previous page state BEFORE DOM swap
-          if (window._gravityAnim) { cancelAnimationFrame(window._gravityAnim); window._gravityAnim = null; }
-          if (window._gravityObserver) { window._gravityObserver.disconnect(); window._gravityObserver = null; }
-          if (window._gsGridPrev) { try { window._gsGridPrev.destroy(true); } catch(e) {} window._gsGridPrev = null; }
-          if (window._pageIntervals) window._pageIntervals.forEach(clearInterval);
-          if (window._pageTimeouts) window._pageTimeouts.forEach(clearTimeout);
-          window._pageIntervals = [];
-          window._pageTimeouts = [];
-
           function execScripts(container) {
-            container.querySelectorAll('script').forEach(s => {
+            const scripts = Array.from(container.querySelectorAll('script'));
+            let chain = Promise.resolve();
+            for (const s of scripts) {
               if (s.src) {
-                const ns = document.createElement('script');
-                ns.src = s.src;
-                s.replaceWith(ns);
+                // Check if this external script is already loaded
+                if (document.querySelector('script[src="' + s.src + '"]')) {
+                  s.remove();
+                  continue;
+                }
+                chain = chain.then(() => new Promise((resolve, reject) => {
+                  const ns = document.createElement('script');
+                  ns.src = s.src;
+                  ns.onload = resolve;
+                  ns.onerror = () => { console.error('[SPA] failed to load:', s.src); resolve(); };
+                  s.replaceWith(ns);
+                }));
               } else {
-                // Use Function() to execute in its own scope — avoids const/let redeclaration errors
-                try { Function(s.textContent)(); } catch(e) { console.error('[SPA] script error:', e); }
-                s.remove();
+                chain = chain.then(() => {
+                  try { Function(s.textContent)(); } catch(e) { console.error('[SPA] script error:', e); }
+                  s.remove();
+                });
               }
-            });
+            }
+            return chain;
           }
-          execScripts(document.querySelector('main'));
-          if (newScripts) {
-            const ps = document.getElementById('page-scripts');
-            ps.innerHTML = '';
-            newScripts.querySelectorAll('script').forEach(s => {
-              if (s.src) {
-                const ns = document.createElement('script');
-                ns.src = s.src;
-                ps.appendChild(ns);
-              } else {
-                try { Function(s.textContent)(); } catch(e) { console.error('[SPA] script error:', e); }
+          execScripts(document.querySelector('main')).then(() => {
+            if (newScripts) {
+              const ps = document.getElementById('page-scripts');
+              ps.innerHTML = '';
+              const scripts = Array.from(newScripts.querySelectorAll('script'));
+              let chain = Promise.resolve();
+              for (const s of scripts) {
+                if (s.src) {
+                  if (document.querySelector('script[src="' + s.src + '"]')) continue;
+                  chain = chain.then(() => new Promise((resolve) => {
+                    const ns = document.createElement('script');
+                    ns.src = s.src;
+                    ns.onload = resolve;
+                    ns.onerror = () => { console.error('[SPA] failed to load:', s.src); resolve(); };
+                    ps.appendChild(ns);
+                  }));
+                } else {
+                  chain = chain.then(() => {
+                    try { Function(s.textContent)(); } catch(e) { console.error('[SPA] script error:', e); }
+                  });
+                }
               }
-            });
-          }
+              return chain;
+            }
+          });
 
           if (window.innerWidth <= 768) {
             document.getElementById('sidebar').classList.remove('open');
