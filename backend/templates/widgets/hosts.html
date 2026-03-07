@@ -38,7 +38,13 @@
             {% if s.latency is not none %}{{ s.latency }}ms{% else %}—{% endif %}
           </span>
         </div>
-        <div class="sparkline-box h-3 mt-1" data-host-spark="{{ s.host.id }}"></div>
+        {% set hp = ((1 - s.health_score) * 100) | round | int %}
+        <div class="flex items-center gap-1.5 mt-1.5">
+          <div class="metric-bar flex-1">
+            <div class="metric-bar-fill {% if hp < 70 %}!bg-ng-critical{% elif hp < 90 %}!bg-ng-warning{% endif %}" style="width:{{ hp }}%"></div>
+          </div>
+          <span class="text-[9px] font-mono tabular-nums w-7 text-right {% if hp >= 90 %}text-ng-success{% elif hp >= 70 %}text-ng-warning{% else %}text-ng-critical{% endif %}">{{ hp }}%</span>
+        </div>
       </a>
       {% endfor %}
     </div>

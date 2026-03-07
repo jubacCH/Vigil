@@ -271,11 +271,22 @@
     if (h.online === false) return { r: 255, g: 48, b: 96 };
     if (h.maintenance)      return { r: 251, g: 191, b: 36 };
     if (h.online === null)  return { r: 71, g: 85, b: 105 };
-    const l = h.latency;
-    if (l !== null && l > 100) return { r: 255, g: 160, b: 80 };
-    if (l !== null && l > 40)  return { r: 251, g: 211, b: 100 };
-    if (l !== null && l > 10)  return { r: 52, g: 211, b: 153 };
-    return { r: 108, g: 142, b: 255 };
+    // Color based on health score: 0=blue/healthy → 0.5=yellow/warning → 1.0=red/critical
+    const hs = h.healthScore;
+    if (hs <= 0.25) {
+      const t = hs / 0.25;
+      return { r: Math.round(108 + t * (52 - 108)), g: Math.round(142 + t * (211 - 142)), b: Math.round(255 + t * (153 - 255)) };
+    }
+    if (hs <= 0.5) {
+      const t = (hs - 0.25) / 0.25;
+      return { r: Math.round(52 + t * (251 - 52)), g: Math.round(211 + t * (191 - 211)), b: Math.round(153 + t * (36 - 153)) };
+    }
+    if (hs <= 0.75) {
+      const t = (hs - 0.5) / 0.25;
+      return { r: Math.round(251 + t * (255 - 251)), g: Math.round(191 + t * (100 - 191)), b: Math.round(36 + t * (60 - 36)) };
+    }
+    const t = Math.min((hs - 0.75) / 0.25, 1);
+    return { r: Math.round(255 + t * (255 - 255)), g: Math.round(100 + t * (48 - 100)), b: Math.round(60 + t * (96 - 60)) };
   }
 
   function initGravityWell(attempt) {
@@ -465,6 +476,12 @@
       document.getElementById('tt-type').textContent = h.checkType.toUpperCase();
       document.getElementById('tt-latency').textContent = h.latency !== null ? h.latency + ' ms' : '—';
       document.getElementById('tt-uptime').textContent = h.uptimePct !== null ? h.uptimePct + '%' : '—';
+      const healthPct = Math.round((1 - h.healthScore) * 100);
+      const ttHealth = document.getElementById('tt-health');
+      if (ttHealth) {
+        ttHealth.textContent = healthPct + '%';
+        ttHealth.className = 'font-mono text-[10px] ' + (healthPct >= 90 ? 'text-ng-success' : healthPct >= 70 ? 'text-ng-warning' : 'text-ng-critical');
+      }
       const dot = document.getElementById('tt-dot');
       dot.className = 'w-2 h-2 rounded-full shrink-0 ' + (h.maintenance ? 'bg-ng-warning' : h.online ? 'bg-ng-success' : h.online === false ? 'bg-ng-critical' : 'bg-[--ng-text-muted]');
 
