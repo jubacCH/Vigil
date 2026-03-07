@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 import psutil
 from fastapi import APIRouter, Depends, Request
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import func, literal_column, select, text
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import PingHost, PingResult, Setting, get_db
@@ -135,33 +135,20 @@ async def system_status(request: Request, db: AsyncSession = Depends(get_db)):
     except Exception:
         pass
 
-    # ── Integration health (batch: 1 query with DISTINCT ON) ─────────────
+    # ── Integration health (batch: LATERAL join for latest snapshot) ──────
     integration_summary = []
     try:
-        # Latest snapshot per (entity_type, entity_id) via DISTINCT ON
-        latest_sub = (
-            select(Snapshot)
-            .distinct(Snapshot.entity_type, Snapshot.entity_id)
-            .order_by(Snapshot.entity_type, Snapshot.entity_id, Snapshot.timestamp.desc())
-        ).subquery()
-
-        rows = (await db.execute(
-            select(
-                IntegrationConfig.type,
-                IntegrationConfig.name,
-                literal_column("anon_1.ok").label("ok"),
-                literal_column("anon_1.timestamp").label("ts"),
-                literal_column("anon_1.error").label("error"),
-            )
-            .select_from(IntegrationConfig)
-            .outerjoin(
-                latest_sub,
-                (literal_column("anon_1.entity_type") == IntegrationConfig.type) &
-                (literal_column("anon_1.entity_id") == IntegrationConfig.id)
-            )
-            .where(IntegrationConfig.enabled == True)
-            .order_by(IntegrationConfig.type, IntegrationConfig.name)
-        )).all()
+        rows = (await db.execute(text("""
+            SELECT c.type, c.name, s.ok, s.timestamp AS ts, s.error
+            FROM integration_configs c
+            LEFT JOIN LATERAL (
+                SELECT ok, timestamp, error FROM snapshots
+                WHERE entity_type = c.type AND entity_id = c.id
+                ORDER BY timestamp DESC LIMIT 1
+            ) s ON true
+            WHERE c.enabled = true
+            ORDER BY c.type, c.name
+        """))).all()
 
         for r in rows:
             integration_summary.append({
