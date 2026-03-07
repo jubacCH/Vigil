@@ -1,10 +1,6 @@
 {% extends "base.html" %}
 {% block title %}{{ agent.name }} – Agent{% endblock %}
 
-{% block head %}
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
-{% endblock %}
-
 {% block content %}
 <div class="p-8">
 
@@ -15,149 +11,113 @@
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
             </svg>
         </a>
-        <span class="w-3 h-3 rounded-full {% if online %}bg-ng-success{% else %}bg-slate-500{% endif %}" id="agent-status"></span>
+        <span class="w-3 h-3 rounded-full {% if online %}bg-ng-success{% else %}bg-slate-500{% endif %}"></span>
         <h1 class="ng-heading text-2xl text-[--ng-text-primary]">{{ agent.name }}</h1>
         {% if agent.agent_version %}
         <span class="px-2 py-0.5 rounded text-[10px] font-mono bg-white/[0.06] text-[--ng-text-muted]">v{{ agent.agent_version }}</span>
         {% endif %}
+        {% if online %}
+        <span class="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 text-[10px] font-medium border border-emerald-500/20">Online</span>
+        {% else %}
+        <span class="px-2 py-0.5 rounded-full bg-slate-500/10 text-slate-400 text-[10px] font-medium border border-slate-500/20">Offline</span>
+        {% endif %}
     </div>
     <div class="flex gap-2">
+        {% if ping_host %}
+        <a href="/ping/{{ ping_host.id }}?tab=monitoring" class="ng-btn ng-btn-ghost flex items-center gap-1.5">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+            </svg>
+            View Host Metrics
+        </a>
+        {% endif %}
         <form method="post" action="/agents/{{ agent.id }}/delete" onsubmit="return confirm('Delete this agent and all its data?')">
             <button type="submit" class="bg-ng-critical/10 hover:bg-ng-critical/20 text-ng-critical border border-ng-critical/20 px-3 py-1.5 rounded-lg text-sm transition-colors">Delete</button>
         </form>
     </div>
 </div>
 
-<!-- System info -->
-<div class="flex flex-wrap gap-x-6 gap-y-1 mb-4">
-    <span class="text-xs text-[--ng-text-muted] font-mono">Hostname: <span class="text-[--ng-text-secondary]" id="agent-hostname">{{ agent.hostname or '—' }}</span></span>
-    <span class="text-xs text-[--ng-text-muted] font-mono">Platform: <span class="text-[--ng-text-secondary]">{{ agent.platform or '—' }} {{ agent.arch or '' }}</span></span>
-    <span class="text-xs text-[--ng-text-muted] font-mono">Last seen: <span class="text-[--ng-text-secondary]" id="agent-lastseen">{{ agent.last_seen.strftime('%Y-%m-%d %H:%M:%S') if agent.last_seen else 'never' }}</span></span>
-</div>
+<!-- Agent info -->
+<div class="grid gap-4 md:grid-cols-2 mb-6">
 
-<!-- Current metrics -->
-{% if snapshots %}
-{% set latest = snapshots[-1] %}
-<div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3 mb-6">
-    <div class="glass-card p-4 text-center">
-        <p class="text-2xl font-bold {% if latest.cpu_pct is not none %}{% if latest.cpu_pct > 85 %}text-ng-critical{% elif latest.cpu_pct > 70 %}text-ng-warning{% else %}text-ng-success{% endif %}{% else %}text-[--ng-text-muted]{% endif %}" id="metric-cpu">{% if latest.cpu_pct is not none %}{{ latest.cpu_pct }}%{% else %}—{% endif %}</p>
-        <p class="metric-label !text-[10px]">CPU</p>
-    </div>
-    <div class="glass-card p-4 text-center">
-        <p class="text-2xl font-bold {% if latest.mem_pct is not none %}{% if latest.mem_pct > 85 %}text-ng-critical{% elif latest.mem_pct > 70 %}text-ng-warning{% else %}text-ng-success{% endif %}{% else %}text-[--ng-text-muted]{% endif %}" id="metric-mem">{% if latest.mem_pct is not none %}{{ latest.mem_pct }}%{% else %}—{% endif %}</p>
-        <p class="metric-label !text-[10px]">Memory{% if latest.mem_used_mb %} ({{ latest.mem_used_mb|int }}/{{ latest.mem_total_mb|int }}M){% endif %}</p>
-    </div>
-    <div class="glass-card p-4 text-center">
-        <p class="text-2xl font-bold {% if latest.disk_pct is not none %}{% if latest.disk_pct > 85 %}text-ng-critical{% elif latest.disk_pct > 70 %}text-ng-warning{% else %}text-[--ng-text-primary]{% endif %}{% else %}text-[--ng-text-muted]{% endif %}" id="metric-disk">{% if latest.disk_pct is not none %}{{ latest.disk_pct }}%{% else %}—{% endif %}</p>
-        <p class="metric-label !text-[10px]">Disk</p>
-    </div>
-    {% if latest.load_1 is not none %}
-    <div class="glass-card p-4 text-center">
-        <p class="text-2xl font-bold text-[--ng-text-primary]" id="metric-load">{{ latest.load_1 }}</p>
-        <p class="metric-label !text-[10px]">Load (1m)</p>
-    </div>
-    {% endif %}
-    {% if latest.uptime_s is not none %}
-    {% set uptime_h = (latest.uptime_s / 3600)|round|int %}
-    <div class="glass-card p-4 text-center">
-        <p class="text-2xl font-bold text-[--ng-text-primary]" id="metric-uptime">{% if uptime_h > 24 %}{{ (uptime_h / 24)|round|int }}d{% else %}{{ uptime_h }}h{% endif %}</p>
-        <p class="metric-label !text-[10px]">Uptime</p>
-    </div>
-    {% endif %}
-    {% if latest.rx_bytes is not none %}
-    <div class="glass-card p-4 text-center">
-        <p class="text-2xl font-bold text-[--ng-text-primary]" id="metric-net">{{ (latest.rx_bytes / 1073741824)|round(1) }}G</p>
-        <p class="metric-label !text-[10px]">Net RX</p>
-    </div>
-    {% endif %}
-</div>
-
-<!-- Charts -->
-<div class="grid gap-4 lg:grid-cols-2 mb-6">
-    <div class="glass-card p-4">
-        <h3 class="metric-label !text-[10px] mb-3">CPU & Memory</h3>
-        <div style="position:relative; height:160px"><canvas id="chart-cpu-mem"></canvas></div>
-    </div>
-    <div class="glass-card p-4">
-        <h3 class="metric-label !text-[10px] mb-3">Load Average</h3>
-        <div style="position:relative; height:160px"><canvas id="chart-load"></canvas></div>
-    </div>
-</div>
-
-<!-- Disks table -->
-{% set disks = full_data.get('disks', []) %}
-{% if disks %}
-<h2 class="metric-label !text-[10px] mb-3">Disk Usage</h2>
-<div class="glass-card overflow-hidden mb-6">
-    <table class="w-full text-sm">
-        <thead>
-            <tr class="border-b border-white/[0.06] text-[--ng-text-muted] text-[10px] uppercase tracking-wider">
-                <th class="px-4 py-2.5 text-left font-medium">Mount</th>
-                <th class="px-4 py-2.5 text-right font-medium">Used</th>
-                <th class="px-4 py-2.5 text-right font-medium">Total</th>
-                <th class="px-4 py-2.5 text-right font-medium">Usage</th>
-                <th class="px-4 py-2.5 text-left font-medium w-32">Bar</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for d in disks %}
-            <tr class="border-b border-white/[0.03] hover:bg-white/[0.02]">
-                <td class="px-4 py-2 text-[--ng-text-primary] font-mono text-xs">{{ d.mount }}</td>
-                <td class="px-4 py-2 text-right text-xs font-mono text-[--ng-text-secondary]">{{ d.used_gb }} GB</td>
-                <td class="px-4 py-2 text-right text-xs font-mono text-[--ng-text-muted]">{{ d.total_gb }} GB</td>
-                <td class="px-4 py-2 text-right text-xs font-mono {% if d.pct > 85 %}text-ng-critical{% elif d.pct > 70 %}text-ng-warning{% else %}text-[--ng-text-secondary]{% endif %}">{{ d.pct }}%</td>
-                <td class="px-4 py-2">
-                    <div class="h-1.5 bg-white/[0.06] rounded-full overflow-hidden">
-                        <div class="h-full rounded-full {% if d.pct > 85 %}bg-ng-critical{% elif d.pct > 70 %}bg-ng-warning{% else %}bg-ng-primary{% endif %}" style="width:{{ d.pct }}%"></div>
-                    </div>
-                </td>
-            </tr>
+    <!-- Status card -->
+    <div class="glass-card p-5">
+        <h3 class="metric-label !text-[10px] mb-4">Agent Status</h3>
+        <div class="space-y-3">
+            <div class="flex justify-between text-xs">
+                <span class="text-[--ng-text-muted]">Hostname</span>
+                <span class="text-[--ng-text-primary] font-mono">{{ agent.hostname or '—' }}</span>
+            </div>
+            <div class="flex justify-between text-xs">
+                <span class="text-[--ng-text-muted]">Platform</span>
+                <span class="text-[--ng-text-secondary]">{{ agent.platform or '—' }} {{ agent.arch or '' }}</span>
+            </div>
+            {% if full_data.get('os_info') %}
+            <div class="flex justify-between text-xs">
+                <span class="text-[--ng-text-muted]">OS</span>
+                <span class="text-[--ng-text-secondary] font-mono text-[10px]">{{ full_data.os_info.get('name', '') }} {{ full_data.os_info.get('version', '') }}</span>
+            </div>
+            {% endif %}
+            {% if full_data.get('network_adapters') %}
+            {% for a in full_data.network_adapters %}
+            {% for ip in a.get('ips', []) %}
+            <div class="flex justify-between text-xs">
+                <span class="text-[--ng-text-muted]">IP</span>
+                <span class="text-[--ng-text-primary] font-mono">{{ ip }}</span>
+            </div>
             {% endfor %}
-        </tbody>
-    </table>
-</div>
-{% endif %}
-
-<!-- Top processes -->
-{% set processes = full_data.get('processes', []) %}
-{% if processes %}
-<h2 class="metric-label !text-[10px] mb-3">Top Processes</h2>
-<div class="glass-card overflow-hidden mb-6">
-    <table class="w-full text-sm">
-        <thead>
-            <tr class="border-b border-white/[0.06] text-[--ng-text-muted] text-[10px] uppercase tracking-wider">
-                <th class="px-4 py-2.5 text-left font-medium">Command</th>
-                <th class="px-4 py-2.5 text-left font-medium">User</th>
-                <th class="px-4 py-2.5 text-right font-medium">PID</th>
-                <th class="px-4 py-2.5 text-right font-medium">CPU%</th>
-                <th class="px-4 py-2.5 text-right font-medium">MEM%</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for p in processes %}
-            <tr class="border-b border-white/[0.03] hover:bg-white/[0.02]">
-                <td class="px-4 py-2 text-[--ng-text-primary] font-mono text-xs truncate max-w-[250px]">{{ p.cmd }}</td>
-                <td class="px-4 py-2 text-[--ng-text-muted] text-xs">{{ p.get('user', '—') }}</td>
-                <td class="px-4 py-2 text-right text-xs font-mono text-[--ng-text-muted]">{{ p.pid }}</td>
-                <td class="px-4 py-2 text-right text-xs font-mono {% if p.get('cpu', 0) > 50 %}text-ng-warning{% else %}text-[--ng-text-secondary]{% endif %}">{{ p.get('cpu', '—') }}{% if p.get('cpu') is not none %}%{% endif %}</td>
-                <td class="px-4 py-2 text-right text-xs font-mono text-[--ng-text-secondary]">{% if p.get('mem') is not none %}{{ p.mem }}%{% elif p.get('mem_mb') is not none %}{{ p.mem_mb }}M{% else %}—{% endif %}</td>
-            </tr>
             {% endfor %}
-        </tbody>
-    </table>
-</div>
-{% endif %}
+            {% endif %}
+            <div class="flex justify-between text-xs">
+                <span class="text-[--ng-text-muted]">Last seen</span>
+                <span class="text-[--ng-text-secondary]">{{ agent.last_seen.strftime('%Y-%m-%d %H:%M:%S') if agent.last_seen else 'never' }}</span>
+            </div>
+            {% if latest %}
+            <div class="flex justify-between text-xs">
+                <span class="text-[--ng-text-muted]">Report interval</span>
+                <span class="text-[--ng-text-secondary]">30s</span>
+            </div>
+            {% endif %}
+        </div>
+    </div>
 
-{% else %}
-<div class="text-center py-16 text-[--ng-text-secondary]">
-    <p class="text-lg mb-2">No data yet</p>
-    <p class="text-sm">Waiting for the agent to report its first metrics.</p>
+    <!-- Quick metrics (compact) -->
+    {% if latest %}
+    <div class="glass-card p-5">
+        <h3 class="metric-label !text-[10px] mb-4">Current Metrics</h3>
+        <div class="grid grid-cols-3 gap-4">
+            <div class="text-center">
+                <p class="text-2xl font-bold {% if latest.cpu_pct is not none %}{% if latest.cpu_pct > 85 %}text-ng-critical{% elif latest.cpu_pct > 70 %}text-ng-warning{% else %}text-ng-success{% endif %}{% else %}text-[--ng-text-muted]{% endif %}">{% if latest.cpu_pct is not none %}{{ latest.cpu_pct }}%{% else %}—{% endif %}</p>
+                <p class="metric-label !text-[10px]">CPU</p>
+            </div>
+            <div class="text-center">
+                <p class="text-2xl font-bold {% if latest.mem_pct is not none %}{% if latest.mem_pct > 85 %}text-ng-critical{% elif latest.mem_pct > 70 %}text-ng-warning{% else %}text-ng-success{% endif %}{% else %}text-[--ng-text-muted]{% endif %}">{% if latest.mem_pct is not none %}{{ latest.mem_pct }}%{% else %}—{% endif %}</p>
+                <p class="metric-label !text-[10px]">Memory</p>
+            </div>
+            <div class="text-center">
+                <p class="text-2xl font-bold {% if latest.disk_pct is not none %}{% if latest.disk_pct > 85 %}text-ng-critical{% elif latest.disk_pct > 70 %}text-ng-warning{% else %}text-[--ng-text-primary]{% endif %}{% else %}text-[--ng-text-muted]{% endif %}">{% if latest.disk_pct is not none %}{{ latest.disk_pct }}%{% else %}—{% endif %}</p>
+                <p class="metric-label !text-[10px]">Disk</p>
+            </div>
+        </div>
+        {% if ping_host %}
+        <div class="mt-4 pt-3 border-t border-white/[0.06] text-center">
+            <a href="/ping/{{ ping_host.id }}?tab=monitoring" class="text-ng-primary text-xs hover:underline">View full metrics in Host detail &rarr;</a>
+        </div>
+        {% endif %}
+    </div>
+    {% else %}
+    <div class="glass-card p-5 flex items-center justify-center">
+        <div class="text-center text-[--ng-text-muted]">
+            <p class="text-sm mb-1">No data yet</p>
+            <p class="text-[10px]">Waiting for agent to report...</p>
+        </div>
+    </div>
+    {% endif %}
 </div>
-{% endif %}
 
-<!-- Agent Config section -->
-<div class="glass-card p-4 mt-6">
-    <h3 class="metric-label !text-[10px] mb-3">Agent Configuration</h3>
+<!-- Agent Configuration -->
+<div class="glass-card p-5">
+    <h3 class="metric-label !text-[10px] mb-4">Configuration</h3>
     <div class="space-y-3">
         <div>
             <p class="text-[10px] text-[--ng-text-muted] font-mono mb-1">Token</p>
@@ -172,10 +132,17 @@
         </div>
         <div class="border-t border-white/[0.06] pt-3">
             <p class="text-[10px] text-[--ng-text-muted] font-mono mb-1">Re-install on this host</p>
-            <div class="relative group">
-                <code id="reinstall-cmd" class="block bg-white/[0.03] border border-white/[0.06] rounded-lg px-3 py-2 pr-16 text-[11px] font-mono text-ng-success overflow-x-auto whitespace-nowrap">curl -sSL {{ request.url.scheme }}://{{ request.url.netloc }}/install/linux | sudo bash</code>
-                <button onclick="navigator.clipboard.writeText(document.getElementById('reinstall-cmd').textContent.trim()).then(()=>showToast('Copied!','success'))"
-                        class="absolute right-2 top-1/2 -translate-y-1/2 ng-btn ng-btn-ghost !px-2 !py-1 !text-[10px] opacity-0 group-hover:opacity-100 transition-opacity">Copy</button>
+            <div class="space-y-2">
+                <div class="relative group">
+                    <code id="reinstall-linux" class="block bg-white/[0.03] border border-white/[0.06] rounded-lg px-3 py-2 pr-16 text-[11px] font-mono text-ng-success overflow-x-auto whitespace-nowrap">curl -sSL {{ request.url.scheme }}://{{ request.url.netloc }}/install/linux | sudo bash</code>
+                    <button onclick="navigator.clipboard.writeText(document.getElementById('reinstall-linux').textContent.trim()).then(()=>showToast('Copied!','success'))"
+                            class="absolute right-2 top-1/2 -translate-y-1/2 ng-btn ng-btn-ghost !px-2 !py-1 !text-[10px] opacity-0 group-hover:opacity-100 transition-opacity">Copy</button>
+                </div>
+                <div class="relative group">
+                    <code id="reinstall-win" class="block bg-white/[0.03] border border-white/[0.06] rounded-lg px-3 py-2 pr-16 text-[11px] font-mono text-[#58a6ff] overflow-x-auto whitespace-nowrap">irm {{ request.url.scheme }}://{{ request.url.netloc }}/install/windows | iex</code>
+                    <button onclick="navigator.clipboard.writeText(document.getElementById('reinstall-win').textContent.trim()).then(()=>showToast('Copied!','success'))"
+                            class="absolute right-2 top-1/2 -translate-y-1/2 ng-btn ng-btn-ghost !px-2 !py-1 !text-[10px] opacity-0 group-hover:opacity-100 transition-opacity">Copy</button>
+                </div>
             </div>
             <p class="text-[9px] text-[--ng-text-muted] mt-1">Same hostname = same agent. Re-running the installer reconnects this host.</p>
         </div>
@@ -183,112 +150,4 @@
 </div>
 
 </div>
-{% endblock %}
-
-{% block scripts %}
-<script>
-(function() {
-    // Chart data from server-rendered snapshots
-    // Snapshot data built via Jinja loop below
-
-    // Build time labels and data arrays
-    const labels = [];
-    const cpuData = [];
-    const memData = [];
-    const load1Data = [];
-    const load5Data = [];
-    const load15Data = [];
-
-    // Process snapshots - they are ORM objects serialized, access via attribute names
-    {% for s in snapshots %}
-    labels.push('{{ s.timestamp.strftime("%H:%M") }}');
-    cpuData.push({{ s.cpu_pct if s.cpu_pct is not none else 'null' }});
-    memData.push({{ s.mem_pct if s.mem_pct is not none else 'null' }});
-    load1Data.push({{ s.load_1 if s.load_1 is not none else 'null' }});
-    load5Data.push({{ s.load_5 if s.load_5 is not none else 'null' }});
-    load15Data.push({{ s.load_15 if s.load_15 is not none else 'null' }});
-    {% endfor %}
-
-    const chartOpts = {
-        responsive: true,
-        maintainAspectRatio: false,
-        animation: { duration: 300 },
-        scales: {
-            x: { display: true, grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#64748b', font: { size: 9, family: 'JetBrains Mono' }, maxTicksLimit: 10 } },
-            y: { display: true, grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#64748b', font: { size: 9, family: 'JetBrains Mono' } } },
-        },
-        plugins: { legend: { display: true, labels: { color: '#94a3b8', font: { size: 10 }, boxWidth: 12 } } },
-        elements: { point: { radius: 0 }, line: { tension: 0.3, borderWidth: 1.5 } },
-    };
-
-    if (typeof Chart !== 'undefined' && labels.length > 1) {
-        // CPU & Memory chart
-        const cpuMemCtx = document.getElementById('chart-cpu-mem');
-        if (cpuMemCtx) {
-            new Chart(cpuMemCtx, {
-                type: 'line',
-                data: {
-                    labels: labels,
-                    datasets: [
-                        { label: 'CPU %', data: cpuData, borderColor: '#38BDF8', backgroundColor: 'rgba(56,189,248,0.1)', fill: true },
-                        { label: 'Memory %', data: memData, borderColor: '#A78BFA', backgroundColor: 'rgba(167,139,250,0.1)', fill: true },
-                    ]
-                },
-                options: { ...chartOpts, scales: { ...chartOpts.scales, y: { ...chartOpts.scales.y, min: 0, max: 100 } } }
-            });
-        }
-
-        // Load chart
-        const loadCtx = document.getElementById('chart-load');
-        if (loadCtx && load1Data.some(v => v !== null)) {
-            new Chart(loadCtx, {
-                type: 'line',
-                data: {
-                    labels: labels,
-                    datasets: [
-                        { label: '1m', data: load1Data, borderColor: '#34D399', backgroundColor: 'rgba(52,211,153,0.1)', fill: true },
-                        { label: '5m', data: load5Data, borderColor: '#FBBF24', backgroundColor: 'transparent' },
-                        { label: '15m', data: load15Data, borderColor: '#FB7185', backgroundColor: 'transparent' },
-                    ]
-                },
-                options: { ...chartOpts, scales: { ...chartOpts.scales, y: { ...chartOpts.scales.y, min: 0 } } }
-            });
-        }
-    }
-
-    // WebSocket live updates
-    const agentId = {{ agent.id }};
-    const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const ws = new WebSocket(proto + '//' + location.host + '/ws/live');
-
-    ws.onmessage = function(e) {
-        try {
-            const d = JSON.parse(e.data);
-            if (d.type !== 'agent_metric' || d.agent_id !== agentId) return;
-
-            // Update status
-            const status = document.getElementById('agent-status');
-            if (status) status.className = 'w-3 h-3 rounded-full bg-ng-success';
-
-            // Update metric cards
-            function updateMetric(id, val, unit, thresholds) {
-                const el = document.getElementById(id);
-                if (!el || val == null) return;
-                el.textContent = val + (unit || '');
-                if (thresholds) {
-                    const cls = val > thresholds[1] ? 'text-ng-critical' : val > thresholds[0] ? 'text-ng-warning' : 'text-ng-success';
-                    el.className = el.className.replace(/text-ng-\w+|text-\[--ng-text-\w+\]/g, '') + ' ' + cls;
-                }
-            }
-            updateMetric('metric-cpu', d.cpu_pct, '%', [70, 85]);
-            updateMetric('metric-mem', d.mem_pct, '%', [70, 85]);
-            updateMetric('metric-disk', d.disk_pct, '%', [70, 85]);
-            if (d.load_1 != null) updateMetric('metric-load', d.load_1, '');
-
-            document.getElementById('agent-lastseen').textContent = new Date().toLocaleTimeString();
-        } catch(e) {}
-    };
-    ws.onclose = function() { setTimeout(() => location.reload(), 5000); };
-})();
-</script>
 {% endblock %}

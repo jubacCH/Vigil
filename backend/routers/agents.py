@@ -205,29 +205,33 @@ async def agent_detail(request: Request, agent_id: int):
         if not agent:
             return RedirectResponse("/agents", status_code=302)
 
-        # Last 60 snapshots (~ 30 min at 30s interval)
-        snaps_r = await db.execute(
-            select(AgentSnapshot)
-            .where(AgentSnapshot.agent_id == agent_id)
-            .order_by(AgentSnapshot.timestamp.desc())
-            .limit(60)
-        )
-        snapshots = list(reversed(snaps_r.scalars().all()))
-
-        # Latest full data
-        latest = snapshots[-1] if snapshots else None
-        full_data = json.loads(latest.data_json) if latest and latest.data_json else {}
-
         online = False
         if agent.last_seen:
             online = (datetime.utcnow() - agent.last_seen).total_seconds() < 120
 
+        # Find linked PingHost for "View Host" link
+        ping_host = None
+        if agent.hostname:
+            ph_r = await db.execute(select(PingHost).where(PingHost.hostname == agent.hostname))
+            ping_host = ph_r.scalar_one_or_none()
+
+        # Latest snapshot for basic info
+        snap_r = await db.execute(
+            select(AgentSnapshot)
+            .where(AgentSnapshot.agent_id == agent_id)
+            .order_by(AgentSnapshot.timestamp.desc())
+            .limit(1)
+        )
+        latest = snap_r.scalar_one_or_none()
+        full_data = json.loads(latest.data_json) if latest and latest.data_json else {}
+
     return templates.TemplateResponse("agent_detail.html", {
         "request": request,
         "agent": agent,
-        "snapshots": snapshots,
+        "latest": latest,
         "full_data": full_data,
         "online": online,
+        "ping_host": ping_host,
         "active_page": "agents",
     })
 

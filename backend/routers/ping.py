@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from utils.ping import check_host
 from database import PingHost, PingResult, get_db
+from models.agent import Agent, AgentSnapshot
 from models.integration import IntegrationConfig, Snapshot
 from models.syslog import SyslogMessage
 from services import integration as int_svc
@@ -463,6 +464,35 @@ async def ping_detail(host_id: int, request: Request, db: AsyncSession = Depends
         health_score = round(min(_hs, 1.0), 3)
     health_pct = round((1 - health_score) * 100)
 
+    # ── Agent metrics (if an agent reports for this host) ────────────────────
+    agent_data = None
+    agent_snapshots = []
+    agent_obj = (await db.execute(
+        select(Agent).where(Agent.hostname == host.hostname)
+    )).scalar_one_or_none()
+    if not agent_obj:
+        # Also try matching by host name
+        agent_obj = (await db.execute(
+            select(Agent).where(Agent.hostname == host.name)
+        )).scalar_one_or_none()
+    if agent_obj:
+        snaps_q = await db.execute(
+            select(AgentSnapshot)
+            .where(AgentSnapshot.agent_id == agent_obj.id)
+            .order_by(AgentSnapshot.timestamp.desc())
+            .limit(60)
+        )
+        agent_snapshots = list(reversed(snaps_q.scalars().all()))
+        if agent_snapshots:
+            latest_snap = agent_snapshots[-1]
+            agent_data = json.loads(latest_snap.data_json) if latest_snap.data_json else {}
+            agent_data["_snap"] = latest_snap
+            agent_data["_agent"] = agent_obj
+            agent_data["_online"] = (
+                agent_obj.last_seen and
+                (datetime.utcnow() - agent_obj.last_seen).total_seconds() < 120
+            )
+
     return templates.TemplateResponse("ping_detail.html", {
         "request": request,
         "host": host,
@@ -487,6 +517,8 @@ async def ping_detail(host_id: int, request: Request, db: AsyncSession = Depends
         "proxmox_history": proxmox_history,
         "unifi_client": unifi_client,
         "syslog_count": syslog_count,
+        "agent_data": agent_data,
+        "agent_snapshots": agent_snapshots,
         "all_hosts": (await db.execute(
             select(PingHost).where(PingHost.id != host.id).order_by(PingHost.name)
         )).scalars().all(),

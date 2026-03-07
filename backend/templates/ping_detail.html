@@ -535,6 +535,252 @@
     </div>
     {% endif %}
 
+    <!-- Agent metrics (if a Nodeglow agent reports for this host) -->
+    {% if agent_data %}
+    <div class="bg-[--ng-glass-bg] border border-[--ng-glass-border] backdrop-blur-2xl rounded-xl p-6 mb-6">
+      <div class="flex items-center justify-between mb-4">
+        <div class="flex items-center gap-2">
+          <svg class="w-4 h-4 text-ng-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"/>
+          </svg>
+          <h2 class="ng-heading text-sm text-[--ng-text-secondary]">Agent</h2>
+          <span class="w-2 h-2 rounded-full {% if agent_data._online %}bg-ng-success{% else %}bg-slate-500{% endif %}"></span>
+          {% if agent_data.get('agent_version') %}
+          <span class="px-1.5 py-0.5 rounded text-[10px] font-mono bg-white/[0.06] text-[--ng-text-muted]">v{{ agent_data.agent_version }}</span>
+          {% endif %}
+        </div>
+        <div class="flex items-center gap-3">
+          {% if agent_data.get('os_info') %}
+          <span class="text-[--ng-text-muted] text-xs font-mono">{{ agent_data.os_info.get('name', '') }} {{ agent_data.os_info.get('version', '') }}</span>
+          {% endif %}
+          <span class="text-[--ng-text-muted] text-xs">{{ agent_data._snap.timestamp.strftime("%H:%M") }}</span>
+        </div>
+      </div>
+
+      <!-- CPU / Memory / Disk / Uptime -->
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
+        {% set cpu = agent_data.get('cpu_pct') %}
+        <div>
+          <p class="text-slate-500 text-xs uppercase tracking-wider mb-1.5">CPU</p>
+          <p class="text-xl font-bold {% if cpu is not none %}{% if cpu >= 85 %}text-red-400{% elif cpu >= 60 %}text-yellow-400{% else %}text-white{% endif %}{% else %}text-slate-600{% endif %}">
+            {% if cpu is not none %}{{ cpu }}%{% else %}—{% endif %}
+          </p>
+          {% if cpu is not none %}
+          <div class="mt-1.5 h-1 bg-white/[0.06] rounded-full overflow-hidden">
+            <div class="h-full rounded-full {% if cpu >= 85 %}bg-red-400{% elif cpu >= 60 %}bg-yellow-400{% else %}bg-blue-500{% endif %}" style="width:{{ [cpu, 100]|min }}%"></div>
+          </div>
+          {% endif %}
+          {% if agent_data.get('cpu_info') %}
+          <p class="text-slate-500 text-[10px] mt-1">{{ agent_data.cpu_info.get('name', '')[:40] }}</p>
+          {% endif %}
+        </div>
+
+        {% set mem = agent_data.get('memory', {}) %}
+        <div>
+          <p class="text-slate-500 text-xs uppercase tracking-wider mb-1.5">Memory</p>
+          <p class="text-xl font-bold {% if mem.get('pct') is not none %}{% if mem.pct >= 85 %}text-red-400{% elif mem.pct >= 70 %}text-yellow-400{% else %}text-white{% endif %}{% else %}text-slate-600{% endif %}">
+            {% if mem.get('pct') is not none %}{{ mem.pct }}%{% else %}—{% endif %}
+          </p>
+          {% if mem.get('used_mb') is not none %}
+          <p class="text-slate-500 text-xs">{{ (mem.used_mb / 1024)|round(1) }} / {{ (mem.total_mb / 1024)|round(1) }} GB</p>
+          {% endif %}
+          {% if mem.get('pct') is not none %}
+          <div class="mt-1.5 h-1 bg-white/[0.06] rounded-full overflow-hidden">
+            <div class="h-full rounded-full {% if mem.pct >= 85 %}bg-red-400{% elif mem.pct >= 70 %}bg-yellow-400{% else %}bg-purple-500{% endif %}" style="width:{{ [mem.pct, 100]|min }}%"></div>
+          </div>
+          {% endif %}
+        </div>
+
+        {% set disks = agent_data.get('disks', []) %}
+        {% set primary_disk = disks[0] if disks else {} %}
+        <div>
+          <p class="text-slate-500 text-xs uppercase tracking-wider mb-1.5">Disk</p>
+          {% if primary_disk.get('pct') is not none %}
+          <p class="text-xl font-bold {% if primary_disk.pct >= 90 %}text-red-400{% elif primary_disk.pct >= 75 %}text-yellow-400{% else %}text-white{% endif %}">
+            {{ primary_disk.pct }}%
+          </p>
+          <p class="text-slate-500 text-xs">{{ primary_disk.get('used_gb', 0) }} / {{ primary_disk.get('total_gb', 0) }} GB ({{ primary_disk.get('mount', '') }})</p>
+          <div class="mt-1.5 h-1 bg-white/[0.06] rounded-full overflow-hidden">
+            <div class="h-full rounded-full {% if primary_disk.pct >= 90 %}bg-red-400{% elif primary_disk.pct >= 75 %}bg-yellow-400{% else %}bg-emerald-500{% endif %}" style="width:{{ [primary_disk.pct, 100]|min }}%"></div>
+          </div>
+          {% else %}
+          <p class="text-xl font-bold text-slate-600">—</p>
+          {% endif %}
+        </div>
+
+        <div>
+          <p class="text-slate-500 text-xs uppercase tracking-wider mb-1.5">Uptime</p>
+          {% set up_s = agent_data.get('uptime_s') %}
+          <p class="text-xl font-bold text-white">
+            {% if up_s is not none %}
+              {% set up_d = (up_s / 86400)|int %}{% set up_h = ((up_s % 86400) / 3600)|int %}
+              {% if up_d > 0 %}{{ up_d }}d {% endif %}{{ up_h }}h
+            {% else %}—{% endif %}
+          </p>
+          {% if agent_data.get('platform') %}
+          <p class="text-slate-500 text-xs">{{ agent_data.platform }} {{ agent_data.get('arch', '') }}</p>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Swap -->
+      {% set swap = agent_data.get('swap', {}) %}
+      {% if swap.get('total_mb', 0) > 0 %}
+      <div class="flex items-center gap-3 mb-4 text-xs">
+        <span class="text-slate-500 uppercase tracking-wider">Swap</span>
+        <span class="text-[--ng-text-secondary]">{{ swap.get('used_mb', 0)|round(0)|int }} / {{ swap.total_mb|round(0)|int }} MB</span>
+        <div class="flex-1 h-1 bg-white/[0.06] rounded-full overflow-hidden max-w-[200px]">
+          {% set swap_pct = (swap.get('used_mb', 0) / swap.total_mb * 100) if swap.total_mb > 0 else 0 %}
+          <div class="h-full rounded-full {% if swap_pct >= 80 %}bg-red-400{% else %}bg-orange-400{% endif %}" style="width:{{ [swap_pct, 100]|min }}%"></div>
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- CPU/Memory chart -->
+      {% if agent_snapshots|length > 1 %}
+      <div class="border-t border-white/[0.08] pt-4 mb-4">
+        <div class="flex items-center gap-4 mb-3">
+          <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wider">History</h3>
+          <div class="flex items-center gap-3 text-[10px]">
+            <span class="flex items-center gap-1"><span class="inline-block w-3 h-0.5 bg-blue-400 rounded"></span>CPU %</span>
+            <span class="flex items-center gap-1"><span class="inline-block w-3 h-0.5 bg-purple-400 rounded"></span>Memory %</span>
+          </div>
+        </div>
+        <div style="position:relative; height:120px"><canvas id="agentChart"></canvas></div>
+      </div>
+      {% endif %}
+
+      <!-- Network adapters + IPs -->
+      {% set adapters = agent_data.get('network_adapters', []) %}
+      {% if adapters %}
+      <div class="border-t border-white/[0.08] pt-4 mb-4">
+        <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Network</h3>
+        <div class="space-y-2">
+          {% for a in adapters %}
+          <div class="flex items-center gap-3 text-xs">
+            <span class="text-[--ng-text-muted] font-mono truncate max-w-[200px]">{{ a.name }}</span>
+            {% for ip in a.get('ips', []) %}
+            <span class="px-1.5 py-0.5 rounded bg-white/[0.04] text-[--ng-text-secondary] font-mono text-[10px]">{{ ip }}</span>
+            {% endfor %}
+            {% if a.get('mac') %}<span class="text-slate-600 font-mono text-[10px]">{{ a.mac }}</span>{% endif %}
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- GPU -->
+      {% set gpus = agent_data.get('gpus', []) %}
+      {% if gpus %}
+      <div class="border-t border-white/[0.08] pt-4 mb-4">
+        <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">GPU</h3>
+        {% for g in gpus %}
+        <div class="flex items-center gap-3 text-xs mb-1">
+          <span class="text-[--ng-text-primary]">{{ g.name }}</span>
+          {% if g.get('driver') %}<span class="text-[--ng-text-muted] font-mono text-[10px]">{{ g.driver }}</span>{% endif %}
+          {% if g.get('vram_mb') %}<span class="text-[--ng-text-muted]">{{ (g.vram_mb / 1024)|round(1) }} GB VRAM</span>{% endif %}
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      <!-- Hardware (BIOS, Board, RAM) -->
+      {% if agent_data.get('motherboard') or agent_data.get('bios') or agent_data.get('ram_sticks') %}
+      <div class="border-t border-white/[0.08] pt-4 mb-4">
+        <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Hardware</h3>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+          {% if agent_data.get('motherboard') %}
+          <div>
+            <p class="text-slate-500 mb-0.5">Motherboard</p>
+            <p class="text-[--ng-text-primary] font-mono text-[10px]">{{ agent_data.motherboard.get('manufacturer', '') }} {{ agent_data.motherboard.get('product', '') }}</p>
+          </div>
+          {% endif %}
+          {% if agent_data.get('bios') %}
+          <div>
+            <p class="text-slate-500 mb-0.5">BIOS</p>
+            <p class="text-[--ng-text-primary] font-mono text-[10px]">{{ agent_data.bios.get('manufacturer', '') }} {{ agent_data.bios.get('version', '') }}</p>
+          </div>
+          {% endif %}
+          {% if agent_data.get('ram_sticks') %}
+          <div>
+            <p class="text-slate-500 mb-0.5">RAM</p>
+            {% for r in agent_data.ram_sticks %}
+            <p class="text-[--ng-text-primary] font-mono text-[10px]">{{ r.get('size_gb', '?') }}GB {{ r.get('manufacturer', '') }} @ {{ r.get('speed_mhz', '?') }}MHz ({{ r.get('slot', '') }})</p>
+            {% endfor %}
+          </div>
+          {% endif %}
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- Top processes -->
+      {% set procs = agent_data.get('processes', []) %}
+      {% if procs %}
+      <div class="border-t border-white/[0.08] pt-4 mb-4">
+        <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Top Processes</h3>
+        <table class="w-full text-xs">
+          <thead>
+            <tr class="text-slate-500 text-[10px] uppercase tracking-wider">
+              <th class="text-left pb-2 font-medium">Command</th>
+              <th class="text-left pb-2 font-medium">User</th>
+              <th class="text-right pb-2 font-medium">PID</th>
+              <th class="text-right pb-2 font-medium">CPU</th>
+              <th class="text-right pb-2 font-medium">MEM</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for p in procs %}
+            <tr class="border-t border-white/[0.03]">
+              <td class="py-1.5 text-[--ng-text-primary] font-mono text-[10px] truncate max-w-[200px]">{{ p.cmd }}</td>
+              <td class="py-1.5 text-[--ng-text-muted] text-[10px]">{{ p.get('user', '') }}</td>
+              <td class="py-1.5 text-right text-[--ng-text-muted] font-mono text-[10px]">{{ p.pid }}</td>
+              <td class="py-1.5 text-right font-mono text-[10px] {% if p.get('cpu', 0) > 50 %}text-yellow-400{% else %}text-[--ng-text-secondary]{% endif %}">{{ p.get('cpu', '—') }}</td>
+              <td class="py-1.5 text-right font-mono text-[10px] text-[--ng-text-secondary]">{% if p.get('mem') is not none %}{{ p.mem }}%{% elif p.get('mem_mb') is not none %}{{ p.mem_mb }}M{% else %}—{% endif %}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% endif %}
+
+      <!-- Listening ports -->
+      {% set ports = agent_data.get('listening_ports', []) %}
+      {% if ports %}
+      <div class="border-t border-white/[0.08] pt-4 mb-4">
+        <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Listening Ports <span class="text-[--ng-text-muted] normal-case">({{ ports|length }})</span></h3>
+        <div class="flex flex-wrap gap-1.5">
+          {% for p in ports[:30] %}
+          <span class="px-1.5 py-0.5 rounded bg-white/[0.04] text-[10px] font-mono text-[--ng-text-secondary]" title="{{ p.get('process', '') }}">
+            {{ p.get('port', '') }}/{{ p.get('proto', 'tcp') }}
+          </span>
+          {% endfor %}
+          {% if ports|length > 30 %}
+          <span class="px-1.5 py-0.5 text-[10px] text-[--ng-text-muted]">+{{ ports|length - 30 }} more</span>
+          {% endif %}
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- Firewall status -->
+      {% set fw = agent_data.get('firewall', {}) %}
+      {% if fw %}
+      <div class="border-t border-white/[0.08] pt-4">
+        <div class="flex items-center gap-3 text-xs">
+          <span class="text-slate-500 uppercase tracking-wider">Firewall</span>
+          {% if fw.get('enabled') %}
+          <span class="px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 text-[10px]">Enabled</span>
+          {% else %}
+          <span class="px-1.5 py-0.5 rounded bg-red-500/10 text-red-400 text-[10px]">Disabled</span>
+          {% endif %}
+          {% for profile in fw.get('profiles', []) %}
+          <span class="text-[--ng-text-muted] font-mono text-[10px]">{{ profile.get('name', '') }}: {{ 'ON' if profile.get('enabled') else 'OFF' }}</span>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+    </div>
+    {% endif %}
+
   </div>
 
   <!-- ── PORTS TAB ─────────────────────────────────────────────────────────── -->
@@ -874,6 +1120,43 @@
       });
     };
     setPxRange('24h');
+  })();
+  {% endif %}
+
+  // ── Agent CPU/Memory chart ──
+  {% if agent_data and agent_snapshots|length > 1 %}
+  (function() {
+    const labels = [];
+    const cpuData = [];
+    const memData = [];
+    {% for s in agent_snapshots %}
+    labels.push('{{ s.timestamp.strftime("%H:%M") }}');
+    cpuData.push({{ s.cpu_pct if s.cpu_pct is not none else 'null' }});
+    memData.push({{ s.mem_pct if s.mem_pct is not none else 'null' }});
+    {% endfor %}
+    const ctx = document.getElementById('agentChart');
+    if (ctx && typeof Chart !== 'undefined') {
+      new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [
+            { label: 'CPU %', data: cpuData, borderColor: '#38BDF8', backgroundColor: 'rgba(56,189,248,0.08)', fill: true, borderWidth: 1.5, pointRadius: 0, tension: 0.3 },
+            { label: 'Memory %', data: memData, borderColor: '#A78BFA', backgroundColor: 'rgba(167,139,250,0.08)', fill: true, borderWidth: 1.5, pointRadius: 0, tension: 0.3 },
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: { duration: 0 },
+          scales: {
+            x: { display: true, grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#475569', font: { size: 9, family: 'JetBrains Mono' }, maxTicksLimit: 8 } },
+            y: { display: true, min: 0, max: 100, grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#475569', font: { size: 9 } } },
+          },
+          plugins: { legend: { display: false } },
+        }
+      });
+    }
   })();
   {% endif %}
 </script>
