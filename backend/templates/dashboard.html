@@ -700,11 +700,12 @@
     if (!card) return;
     const statusEl = card.querySelector('.px-status');
     try {
-      const res = await fetch(`/proxmox/api/${id}/status`);
+      const res = await fetch(`/api/integration/proxmox/${id}/status`);
       const d = await res.json();
       if (!d.ok) { statusEl.innerHTML = `<span class="text-ng-critical">! ${d.error || 'Connection error'}</span>`; return; }
-      const t = d.totals;
-      const quorum = d.quorum_ok ? `<span class="text-ng-success">&#9679; Quorum OK</span>` : `<span class="text-ng-critical">&#9679; No quorum</span>`;
+      const data = d.data || {};
+      const t = data.totals;
+      const quorum = data.quorum_ok ? `<span class="text-ng-success">&#9679; Quorum OK</span>` : `<span class="text-ng-critical">&#9679; No quorum</span>`;
       statusEl.innerHTML = `
         <div class="flex flex-wrap gap-x-3 gap-y-1 text-xs mb-2">
           ${quorum}
