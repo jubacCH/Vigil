@@ -723,9 +723,9 @@ def get_recent_logs(max_events=200, levels=None):
             f"level = $_.Level; "
             f"source = $_.ProviderName; "
             f"id = $_.Id; "
-            f"msg = if ($_.Message.Length -gt 500) {{ $_.Message.Substring(0,500) }} else {{ $_.Message }} "
+            f"msg = if ($_.Message) {{ if ($_.Message.Length -gt 500) {{ $_.Message.Substring(0,500) }} else {{ $_.Message }} }} else {{ '' }} "
             f"}} }}"
-            f"}} catch {{ }}"
+            f"}} catch [System.Exception] {{ }}"
         )
         result = _ps_json(ps_cmd, timeout=15)
         if result:
