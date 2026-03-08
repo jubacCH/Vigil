@@ -167,7 +167,8 @@ async def agent_report(request: Request):
         "uptime_s": body.get("uptime_s"),
     })
 
-    return {"ok": True}
+    # Return config to agent (log levels, etc.)
+    return {"ok": True, "config": {"log_levels": agent.log_levels or "1,2,3"}}
 
 
 # ── API: Agent log submission ────────────────────────────────────────────────
@@ -407,6 +408,26 @@ async def agent_regenerate_token(request: Request, agent_id: int):
     async with AsyncSessionLocal() as db:
         await db.execute(
             update(Agent).where(Agent.id == agent_id).values(token=new_token)
+        )
+        await db.commit()
+    return RedirectResponse(f"/agents/{agent_id}", status_code=302)
+
+
+# ── CRUD: Save agent settings ────────────────────────────────────────────────
+
+@router.post("/agents/{agent_id}/settings")
+async def agent_save_settings(request: Request, agent_id: int):
+    form = await request.form()
+    # Build log_levels from checkbox values: level_1, level_2, level_3, level_4, level_5
+    levels = []
+    for lvl in (1, 2, 3, 4, 5):
+        if form.get(f"level_{lvl}"):
+            levels.append(str(lvl))
+    log_levels = ",".join(levels) if levels else ""
+
+    async with AsyncSessionLocal() as db:
+        await db.execute(
+            update(Agent).where(Agent.id == agent_id).values(log_levels=log_levels)
         )
         await db.commit()
     return RedirectResponse(f"/agents/{agent_id}", status_code=302)

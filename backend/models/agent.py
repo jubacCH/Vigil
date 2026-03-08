@@ -17,6 +17,7 @@ class Agent(Base):
     arch       = Column(String(32), nullable=True)
     agent_version = Column(String(16), nullable=True)
     enabled    = Column(Boolean, default=True)
+    log_levels = Column(String(32), nullable=True, default="1,2,3")  # Windows Event Log levels to collect
     last_seen  = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 

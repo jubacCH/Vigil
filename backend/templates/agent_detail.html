@@ -115,6 +115,65 @@
     {% endif %}
 </div>
 
+<!-- Log Collection Settings -->
+<div class="glass-card p-5 mb-4">
+    <h3 class="metric-label !text-[10px] mb-4">Log Collection</h3>
+    <form method="post" action="/agents/{{ agent.id }}/settings">
+        <p class="text-xs text-[--ng-text-muted] mb-3">Windows Event Log levels to collect and forward to Syslog:</p>
+        <div class="flex flex-wrap gap-4">
+            {% set active_levels = (agent.log_levels or "1,2,3").split(",") %}
+            <label class="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" name="level_1" value="on"
+                       {% if "1" in active_levels %}checked{% endif %}
+                       class="rounded bg-white/[0.03] border-[--ng-glass-border] accent-red-500">
+                <span class="text-sm">
+                    <span class="inline-block w-2 h-2 rounded-full bg-red-500 mr-1"></span>
+                    Critical
+                </span>
+            </label>
+            <label class="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" name="level_2" value="on"
+                       {% if "2" in active_levels %}checked{% endif %}
+                       class="rounded bg-white/[0.03] border-[--ng-glass-border] accent-orange-500">
+                <span class="text-sm">
+                    <span class="inline-block w-2 h-2 rounded-full bg-orange-500 mr-1"></span>
+                    Error
+                </span>
+            </label>
+            <label class="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" name="level_3" value="on"
+                       {% if "3" in active_levels %}checked{% endif %}
+                       class="rounded bg-white/[0.03] border-[--ng-glass-border] accent-yellow-500">
+                <span class="text-sm">
+                    <span class="inline-block w-2 h-2 rounded-full bg-yellow-500 mr-1"></span>
+                    Warning
+                </span>
+            </label>
+            <label class="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" name="level_4" value="on"
+                       {% if "4" in active_levels %}checked{% endif %}
+                       class="rounded bg-white/[0.03] border-[--ng-glass-border] accent-blue-400">
+                <span class="text-sm">
+                    <span class="inline-block w-2 h-2 rounded-full bg-blue-400 mr-1"></span>
+                    Information
+                </span>
+            </label>
+            <label class="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" name="level_5" value="on"
+                       {% if "5" in active_levels %}checked{% endif %}
+                       class="rounded bg-white/[0.03] border-[--ng-glass-border] accent-slate-400">
+                <span class="text-sm">
+                    <span class="inline-block w-2 h-2 rounded-full bg-slate-400 mr-1"></span>
+                    Verbose
+                </span>
+            </label>
+        </div>
+        <div class="mt-3">
+            <button type="submit" class="ng-btn ng-btn-primary !text-xs !px-3 !py-1.5">Save</button>
+        </div>
+    </form>
+</div>
+
 <!-- Agent Configuration -->
 <div class="glass-card p-5">
     <h3 class="metric-label !text-[10px] mb-4">Configuration</h3>

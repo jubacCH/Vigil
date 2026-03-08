@@ -691,9 +691,16 @@ _WIN_LEVEL_TO_SYSLOG = {
 _last_log_ts = None  # ISO timestamp of last collected log
 
 
-def get_recent_logs(max_events=200):
+def get_recent_logs(max_events=200, levels=None):
     """Collect recent Windows Event Log entries (System + Application)."""
     global _last_log_ts
+
+    if levels is None:
+        levels = [1, 2, 3]  # Critical, Error, Warning
+    if not levels:
+        return []
+
+    level_str = ",".join(str(l) for l in levels)
 
     # Build StartTime for FilterHashtable — this is natively supported and efficient
     if _last_log_ts:
@@ -707,7 +714,7 @@ def get_recent_logs(max_events=200):
         ps_cmd = (
             f"try {{ "
             f"$startTime = {start_time_expr}; "
-            f"Get-WinEvent -FilterHashtable @{{LogName='{log_name}'; Level=1,2,3; StartTime=$startTime}} "
+            f"Get-WinEvent -FilterHashtable @{{LogName='{log_name}'; Level={level_str}; StartTime=$startTime}} "
             f"-MaxEvents {max_events} -ErrorAction Stop | "
             f"ForEach-Object {{ @{{ "
             f"ts = $_.TimeCreated.ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ'); "
@@ -852,6 +859,7 @@ def collect_all():
 # ── Reporter ─────────────────────────────────────────────────────────────────
 
 def send_metrics(server, token, data):
+    """Send metrics to server. Returns (ok, server_config) tuple."""
     url = f"{server.rstrip('/')}/api/agent/report"
     payload = json.dumps(data).encode("utf-8")
     req = urllib.request.Request(url, data=payload, headers={
@@ -860,13 +868,19 @@ def send_metrics(server, token, data):
     }, method="POST")
     try:
         with urllib.request.urlopen(req, timeout=10) as resp:
-            return resp.status == 200
+            if resp.status == 200:
+                try:
+                    resp_data = json.loads(resp.read())
+                    return True, resp_data.get("config", {})
+                except Exception:
+                    return True, {}
+            return False, {}
     except urllib.error.HTTPError as e:
         log.error("HTTP %d: %s", e.code, e.read().decode()[:200])
-        return False
+        return False, {}
     except Exception as e:
         log.error("Send error: %s", e)
-        return False
+        return False, {}
 
 
 # ── Windows Service / Task Scheduler installer ───────────────────────────────
@@ -1099,20 +1113,30 @@ def main():
 
     log_interval = 60  # collect logs every 60 seconds
     last_log_send = 0
+    server_log_levels = [1, 2, 3]  # default: Critical, Error, Warning
 
     while True:
         try:
             data = collect_all()
-            ok = send_metrics(args.server, args.token, data)
+            ok, srv_config = send_metrics(args.server, args.token, data)
             if ok:
                 log.info("OK cpu=%s%% mem=%s%%", data.get('cpu_pct', '?'), data.get('memory', {}).get('pct', '?'))
+                # Update log levels from server config
+                if "log_levels" in srv_config:
+                    try:
+                        new_levels = [int(x) for x in srv_config["log_levels"].split(",") if x.strip()]
+                        if new_levels != server_log_levels:
+                            log.info("Log levels updated: %s", new_levels)
+                        server_log_levels = new_levels
+                    except Exception:
+                        pass
 
             # Send logs less frequently than metrics
             now = time.time()
             if now - last_log_send >= log_interval:
                 last_log_send = now
                 try:
-                    logs = get_recent_logs()
+                    logs = get_recent_logs(levels=server_log_levels)
                     if logs:
                         lok = send_logs(args.server, args.token, socket.gethostname(), logs)
                         log.info("Logs: %d entries %s", len(logs), "sent" if lok else "FAILED")

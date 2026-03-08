@@ -429,6 +429,7 @@ def collect_all():
 # ── Reporter ─────────────────────────────────────────────────────────────────
 
 def send_metrics(server, token, data):
+    """Send metrics to server. Returns (ok, server_config) tuple."""
     url = f"{server.rstrip('/')}/api/agent/report"
     payload = json.dumps(data).encode("utf-8")
     req = urllib.request.Request(url, data=payload, headers={
@@ -437,13 +438,19 @@ def send_metrics(server, token, data):
     }, method="POST")
     try:
         with urllib.request.urlopen(req, timeout=10) as resp:
-            return resp.status == 200
+            if resp.status == 200:
+                try:
+                    resp_data = json.loads(resp.read())
+                    return True, resp_data.get("config", {})
+                except Exception:
+                    return True, {}
+            return False, {}
     except urllib.error.HTTPError as e:
         log.error("HTTP %d: %s", e.code, e.read().decode()[:200])
-        return False
+        return False, {}
     except Exception as e:
         log.error("Send error: %s", e)
-        return False
+        return False, {}
 
 
 # ── Systemd installer ────────────────────────────────────────────────────────
@@ -612,13 +619,23 @@ def main():
 
     log_interval = 60  # collect logs every 60 seconds
     last_log_send = 0
+    server_log_levels = [1, 2, 3]  # default: Critical, Error, Warning
 
     while True:
         try:
             data = collect_all()
-            ok = send_metrics(args.server, args.token, data)
+            ok, srv_config = send_metrics(args.server, args.token, data)
             if ok:
                 log.info("OK cpu=%s%% mem=%s%% load=%s", data.get('cpu_pct', '?'), data.get('memory', {}).get('pct', '?'), data.get('load', {}).get('load_1', '?'))
+                # Update log levels from server config
+                if "log_levels" in srv_config:
+                    try:
+                        new_levels = [int(x) for x in srv_config["log_levels"].split(",") if x.strip()]
+                        if new_levels != server_log_levels:
+                            log.info("Log levels updated: %s", new_levels)
+                        server_log_levels = new_levels
+                    except Exception:
+                        pass
 
             # Send logs less frequently than metrics
             now = time.time()
