@@ -1003,8 +1003,8 @@ def check_and_update(server):
 
             if is_exe:
                 # Windows: running .exe CAN be renamed but NOT deleted.
-                # Strategy: rename running exe → .old, move new → original name,
-                # then use a small batch script to restart.
+                # IMPORTANT: Always restart via batch script to avoid inheriting
+                # the PyInstaller _MEI temp dir from the old process.
                 old_backup = own_path + ".old"
                 if os.path.exists(old_backup):
                     try:
@@ -1012,36 +1012,33 @@ def check_and_update(server):
                     except Exception:
                         pass
 
+                bat_path = os.path.join(own_dir, "_update.bat")
                 try:
                     os.rename(own_path, old_backup)
+                    shutil.move(tmp_path, own_path)
+                    log.info("Updated successfully (v%s), restarting via launcher...", __version__)
+                    # Batch waits for us to exit, then starts the new exe cleanly
+                    with open(bat_path, "w") as bf:
+                        bf.write(f'@echo off\n')
+                        bf.write(f'timeout /t 2 /nobreak >nul\n')
+                        bf.write(f'start "" "{own_path}"\n')
+                        bf.write(f'del "%~f0"\n')
                 except PermissionError:
-                    # Fallback: if rename fails, write an updater batch script
-                    # that waits for us to exit, then replaces the file
+                    # Rename failed — batch must also move the file
                     log.warning("Cannot rename running exe, using deferred update")
-                    bat_path = os.path.join(own_dir, "_update.bat")
                     with open(bat_path, "w") as bf:
                         bf.write(f'@echo off\n')
                         bf.write(f'timeout /t 3 /nobreak >nul\n')
                         bf.write(f'move /Y "{tmp_path}" "{own_path}"\n')
                         bf.write(f'start "" "{own_path}"\n')
                         bf.write(f'del "%~f0"\n')
-                    subprocess.Popen(
-                        ["cmd", "/c", bat_path],
-                        creationflags=0x00000208,  # CREATE_NEW_PROCESS_GROUP | DETACHED_PROCESS
-                    )
-                    log.info("Deferred update scheduled, exiting for restart...")
-                    sys.exit(0)
 
-                shutil.move(tmp_path, own_path)
-                log.info("Updated successfully (v%s), restarting...", __version__)
-
-                # Restart: launch new exe (it reads config.json for server/token)
                 subprocess.Popen(
-                    [own_path],
+                    ["cmd", "/c", bat_path],
                     creationflags=0x00000208,  # CREATE_NEW_PROCESS_GROUP | DETACHED_PROCESS
                 )
             else:
-                # Script mode: just replace the file
+                # Script mode: just replace the file and re-exec
                 shutil.move(tmp_path, own_path)
                 log.info("Updated successfully (v%s), restarting...", __version__)
                 subprocess.Popen(
