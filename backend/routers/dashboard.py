@@ -15,6 +15,7 @@ from database import (
 from models.integration import IntegrationConfig, Snapshot
 from services import integration as int_svc
 from services import snapshot as snap_svc
+from services import ping as ping_svc
 
 router = APIRouter()
 
@@ -71,64 +72,17 @@ async def dashboard(request: Request, db: AsyncSession = Depends(get_db)):
     px_ram_pct_threshold = int(await get_setting(db, "proxmox_ram_threshold", "85"))
     px_disk_threshold    = int(await get_setting(db, "proxmox_disk_threshold", "90"))
 
-    # ── Ping hosts (batch queries instead of N+1) ───────────────────────────
+    # ── Ping hosts (batch queries via service) ─────────────────────────────
     hosts_result = await db.execute(select(PingHost).where(PingHost.enabled == True))
     hosts = hosts_result.scalars().all()
     host_ids = [h.id for h in hosts]
 
-    window_2h = now - timedelta(hours=2)
     host_stats = []
     ping_alarms: list[dict] = []
 
-    # Batch 1: latest result per host (single query)
-    latest_by_host: dict[int, PingResult] = {}
-    if host_ids:
-        latest_sub = (
-            select(PingResult.host_id, func.max(PingResult.id).label("max_id"))
-            .where(PingResult.host_id.in_(host_ids))
-            .group_by(PingResult.host_id)
-            .subquery()
-        )
-        latest_rows = (await db.execute(
-            select(PingResult).join(latest_sub, PingResult.id == latest_sub.c.max_id)
-        )).scalars().all()
-        latest_by_host = {r.host_id: r for r in latest_rows}
-
-    # Batch 2: 24h stats per host (total, success, avg latency) in one query
-    stats_by_host: dict[int, dict] = {}
-    if host_ids:
-        stats_rows = (await db.execute(
-            select(
-                PingResult.host_id,
-                func.count().label("total"),
-                func.count().filter(PingResult.success == True).label("success"),
-                func.avg(PingResult.latency_ms).filter(PingResult.success == True).label("avg_lat"),
-            )
-            .where(PingResult.host_id.in_(host_ids), PingResult.timestamp >= window_24h)
-            .group_by(PingResult.host_id)
-        )).all()
-        for row in stats_rows:
-            stats_by_host[row.host_id] = {
-                "total": row.total,
-                "success": row.success,
-                "avg_lat": row.avg_lat,
-            }
-
-    # Batch 3: sparkline data (last 2h) – fetch all at once, group in Python
-    sparklines_by_host: dict[int, list] = defaultdict(list)
-    if host_ids:
-        spark_rows = (await db.execute(
-            select(PingResult.host_id, PingResult.success, PingResult.latency_ms)
-            .where(PingResult.host_id.in_(host_ids), PingResult.timestamp >= window_2h)
-            .order_by(PingResult.host_id, PingResult.timestamp.asc())
-        )).all()
-        for row in spark_rows:
-            sparklines_by_host[row.host_id].append(
-                row.latency_ms if row.success else None
-            )
-        # Limit to 60 points per host
-        for hid in sparklines_by_host:
-            sparklines_by_host[hid] = sparklines_by_host[hid][-60:]
+    latest_by_host = await ping_svc.get_latest_by_host(db, host_ids)
+    stats_by_host = await ping_svc.get_24h_stats(db, host_ids)
+    sparklines_by_host = await ping_svc.get_sparklines(db, host_ids)
 
     for host in hosts:
         latest_row = latest_by_host.get(host.id)

@@ -18,6 +18,7 @@ from models.integration import IntegrationConfig, Snapshot
 from models.syslog import SyslogMessage
 from services import integration as int_svc
 from services import snapshot as snap_svc
+from services import ping as ping_svc
 
 router = APIRouter(prefix="/ping")
 
@@ -96,21 +97,7 @@ def _uptime_pct(results: list) -> float:
 async def api_status(db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(PingHost).where(PingHost.enabled == True))
     hosts = result.scalars().all()
-    host_ids = [h.id for h in hosts]
-
-    # Batch: latest result per host in one query (avoids N+1)
-    latest_by_host: dict[int, PingResult] = {}
-    if host_ids:
-        latest_sub = (
-            select(PingResult.host_id, func.max(PingResult.id).label("max_id"))
-            .where(PingResult.host_id.in_(host_ids))
-            .group_by(PingResult.host_id)
-            .subquery()
-        )
-        latest_rows = (await db.execute(
-            select(PingResult).join(latest_sub, PingResult.id == latest_sub.c.max_id)
-        )).scalars().all()
-        latest_by_host = {r.host_id: r for r in latest_rows}
+    latest_by_host = await ping_svc.get_latest_by_host(db, [h.id for h in hosts])
 
     out = []
     for host in hosts:
@@ -144,81 +131,22 @@ async def ping_list(request: Request, db: AsyncSession = Depends(get_db)):
     hosts = result.scalars().all()
 
     host_data = []
-    now = datetime.utcnow()
-    window_24h = now - timedelta(hours=24)
-    window_30d = now - timedelta(days=30)
 
-    # Batch uptime queries – 3 queries total regardless of host count
-    uptime_map: dict[int, dict] = {}
-    for window, key in [
-        (timedelta(hours=24), "h24"),
-        (timedelta(days=7),   "d7"),
-        (timedelta(days=30),  "d30"),
-    ]:
-        rows = await db.execute(
-            select(
-                PingResult.host_id,
-                func.count().label("total"),
-                func.sum(cast(PingResult.success, Integer)).label("ok"),
-            )
-            .where(PingResult.timestamp >= now - window)
-            .group_by(PingResult.host_id)
-        )
-        for host_id, total, ok in rows:
-            if host_id not in uptime_map:
-                uptime_map[host_id] = {}
-            uptime_map[host_id][key] = round((ok or 0) / total * 100, 1) if total else None
-
-    # Batch: latest result per host (1 query)
-    from sqlalchemy import and_
-    latest_subq = (
-        select(PingResult.host_id, func.max(PingResult.id).label("max_id"))
-        .group_by(PingResult.host_id)
-    ).subquery()
-    latest_rows = (await db.execute(
-        select(PingResult).join(latest_subq, PingResult.id == latest_subq.c.max_id)
-    )).scalars().all()
-    latest_by_host = {r.host_id: r for r in latest_rows}
-
-    # Batch: 30-day heatmap data (1 query — daily aggregates instead of raw rows)
-    heatmap_rows = (await db.execute(
-        select(
-            PingResult.host_id,
-            func.date(PingResult.timestamp).label("day"),
-            func.count().label("total"),
-            func.sum(cast(PingResult.success, Integer)).label("ok"),
-        )
-        .where(PingResult.timestamp >= window_30d)
-        .group_by(PingResult.host_id, func.date(PingResult.timestamp))
-    )).all()
-    heatmap_agg: dict[int, dict[str, tuple]] = {}
-    for row in heatmap_rows:
-        heatmap_agg.setdefault(row.host_id, {})[str(row.day)] = (row.total, row.ok or 0)
+    uptime_map = await ping_svc.get_uptime_map(db)
+    latest_by_host = await ping_svc.get_latest_by_host(db, [h.id for h in hosts])
+    heatmap_agg = await ping_svc.get_heatmap_data(db)
 
     for host in hosts:
         latest_result = latest_by_host.get(host.id)
         um = uptime_map.get(host.id, {})
-        uptime = um.get("h24") or 0
-
-        # Build heatmap from pre-aggregated daily data
-        heatmap = []
-        agg = heatmap_agg.get(host.id, {})
-        for i in range(30):
-            d = (now - timedelta(days=29 - i)).date()
-            day_data = agg.get(str(d))
-            if day_data:
-                total_d, ok_d = day_data
-                heatmap.append(round(ok_d / total_d * 100, 1) if total_d > 0 else None)
-            else:
-                heatmap.append(None)
 
         host_data.append({
             "host": host,
             "online": latest_result.success if latest_result else None,
             "latency": latest_result.latency_ms if latest_result else None,
             "last_check": latest_result.timestamp if latest_result else None,
-            "uptime_pct": uptime,
-            "heatmap": heatmap,
+            "uptime_pct": um.get("h24") or 0,
+            "heatmap": ping_svc.build_heatmap(heatmap_agg.get(host.id, {})),
         })
 
     return templates.TemplateResponse("ping.html", {

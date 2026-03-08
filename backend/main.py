@@ -1,3 +1,4 @@
+import logging
 import os
 import time
 from contextlib import asynccontextmanager
@@ -5,6 +6,14 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import select
+
+from logging_config import setup_logging
+
+setup_logging(
+    level=os.environ.get("LOG_LEVEL", "INFO"),
+    json_output=os.environ.get("LOG_FORMAT", "json").lower() == "json",
+)
+log = logging.getLogger("nodeglow")
 
 from database import AsyncSessionLocal, get_setting, init_db
 from models.integration import IntegrationConfig
@@ -33,9 +42,11 @@ async def lifespan(app: FastAPI):
     except (ValueError, TypeError):
         syslog_port = int(os.environ.get("SYSLOG_PORT", "1514"))
     await start_syslog_server(udp_port=syslog_port, tcp_port=syslog_port)
+    log.info("Nodeglow started (syslog port=%d)", syslog_port)
     yield
     await stop_syslog_server()
     stop_scheduler()
+    log.info("Nodeglow stopped")
 
 
 app = FastAPI(title="NODEGLOW", lifespan=lifespan)
