@@ -76,8 +76,7 @@ body {
 .glass-card {
   background: var(--ng-glass-bg);
   border: 1px solid var(--ng-glass-border);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  /* backdrop-filter removed — causes stripe artifacts on some GPUs */
   border-radius: 14px;
   padding: 18px 22px;
   transition: background 0.2s, border-color 0.2s;
@@ -91,8 +90,7 @@ body {
 .glass-card-static {
   background: var(--ng-glass-bg);
   border: 1px solid var(--ng-glass-border);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  /* backdrop-filter removed — causes stripe artifacts on some GPUs */
   border-radius: 14px;
   padding: 18px 22px;
 }
@@ -100,8 +98,7 @@ body {
 .glass-elevated {
   background: rgba(255, 255, 255, 0.08);
   border: 1px solid var(--ng-glass-highlight);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
+  /* backdrop-filter removed — causes stripe artifacts on some GPUs */
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
   border-radius: 14px;
 }
@@ -142,7 +139,6 @@ body {
   border: 1px solid rgba(251, 191, 36, 0.15);
   border-radius: 10px;
   padding: 14px 16px;
-  backdrop-filter: blur(8px);
 }
 
 .alert-card.critical {
@@ -171,8 +167,7 @@ body {
 
 .ng-sidebar {
   background: rgba(15, 23, 42, 0.85);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  /* backdrop-filter removed — causes stripe artifacts on some GPUs */
   border-right: 1px solid var(--ng-glass-border);
 }
 

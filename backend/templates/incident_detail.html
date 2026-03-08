@@ -45,15 +45,15 @@
 
   <!-- Info cards -->
   <div class="grid grid-cols-4 gap-4 mb-6">
-    <div class="bg-[--ng-glass-bg] border border-[--ng-glass-border] backdrop-blur-2xl rounded-xl p-4">
+    <div class="bg-[--ng-glass-bg] border border-[--ng-glass-border] rounded-xl p-4">
       <p class="text-slate-500 text-xs uppercase tracking-wider mb-1">Created</p>
       <p class="text-white text-sm font-medium">{{ incident.created_at|localtime("%d.%m.%Y %H:%M:%S") }}</p>
     </div>
-    <div class="bg-[--ng-glass-bg] border border-[--ng-glass-border] backdrop-blur-2xl rounded-xl p-4">
+    <div class="bg-[--ng-glass-bg] border border-[--ng-glass-border] rounded-xl p-4">
       <p class="text-slate-500 text-xs uppercase tracking-wider mb-1">Last updated</p>
       <p class="text-white text-sm font-medium">{{ incident.updated_at|localtime("%d.%m.%Y %H:%M:%S") }}</p>
     </div>
-    <div class="bg-[--ng-glass-bg] border border-[--ng-glass-border] backdrop-blur-2xl rounded-xl p-4">
+    <div class="bg-[--ng-glass-bg] border border-[--ng-glass-border] rounded-xl p-4">
       <p class="text-slate-500 text-xs uppercase tracking-wider mb-1">Duration</p>
       {% set end_time = incident.resolved_at or None %}
       {% if end_time %}
@@ -72,14 +72,14 @@
         {% endif %}
       </p>
     </div>
-    <div class="bg-[--ng-glass-bg] border border-[--ng-glass-border] backdrop-blur-2xl rounded-xl p-4">
+    <div class="bg-[--ng-glass-bg] border border-[--ng-glass-border] rounded-xl p-4">
       <p class="text-slate-500 text-xs uppercase tracking-wider mb-1">Acknowledged by</p>
       <p class="text-white text-sm font-medium">{{ incident.acknowledged_by or '—' }}</p>
     </div>
   </div>
 
   <!-- Event timeline -->
-  <div class="bg-[--ng-glass-bg] border border-[--ng-glass-border] backdrop-blur-2xl rounded-xl p-6">
+  <div class="bg-[--ng-glass-bg] border border-[--ng-glass-border] rounded-xl p-6">
     <h2 class="ng-heading text-sm text-[--ng-text-secondary] mb-5">Event Timeline</h2>
 
     <div class="relative">

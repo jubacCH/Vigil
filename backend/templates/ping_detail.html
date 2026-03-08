@@ -140,7 +140,7 @@
     <div class="grid grid-cols-2 gap-6">
 
       <!-- Edit form -->
-      <div class="bg-[--ng-glass-bg] border border-[--ng-glass-border] backdrop-blur-2xl rounded-xl p-6">
+      <div class="bg-[--ng-glass-bg] border border-[--ng-glass-border] rounded-xl p-6">
         <h2 class="ng-heading text-sm text-[--ng-text-secondary] mb-5">Host details</h2>
         <form method="post" action="/ping/{{ host.id }}/edit" class="space-y-4">
           <div>
@@ -200,7 +200,7 @@
       </div>
 
       <!-- Actions -->
-      <div class="bg-[--ng-glass-bg] border border-[--ng-glass-border] backdrop-blur-2xl rounded-xl p-6">
+      <div class="bg-[--ng-glass-bg] border border-[--ng-glass-border] rounded-xl p-6">
         <h2 class="ng-heading text-sm text-[--ng-text-secondary] mb-5">Actions</h2>
         <div class="space-y-3">
 
@@ -319,31 +319,31 @@
 
     <!-- SLA Stats -->
     <div id="section-latency" class="grid grid-cols-6 gap-4 mb-6">
-      <div class="bg-[--ng-glass-bg] border border-[--ng-glass-border] backdrop-blur-2xl rounded-xl p-5">
+      <div class="bg-[--ng-glass-bg] border border-[--ng-glass-border] rounded-xl p-5">
         <p class="text-slate-500 text-xs uppercase tracking-wider mb-2">Uptime 24h</p>
         <p class="text-2xl font-bold {% if uptime_pct >= 99 %}text-emerald-400{% elif uptime_pct >= 90 %}text-yellow-400{% else %}text-red-400{% endif %}">
           {{ uptime_pct }}%
         </p>
       </div>
-      <div class="bg-[--ng-glass-bg] border border-[--ng-glass-border] backdrop-blur-2xl rounded-xl p-5">
+      <div class="bg-[--ng-glass-bg] border border-[--ng-glass-border] rounded-xl p-5">
         <p class="text-slate-500 text-xs uppercase tracking-wider mb-2">Uptime 7d</p>
         <p class="text-2xl font-bold {% if uptime_7d >= 99 %}text-emerald-400{% elif uptime_7d >= 90 %}text-yellow-400{% else %}text-red-400{% endif %}">
           {{ uptime_7d }}%
         </p>
       </div>
-      <div class="bg-[--ng-glass-bg] border border-[--ng-glass-border] backdrop-blur-2xl rounded-xl p-5">
+      <div class="bg-[--ng-glass-bg] border border-[--ng-glass-border] rounded-xl p-5">
         <p class="text-slate-500 text-xs uppercase tracking-wider mb-2">Uptime 30d</p>
         <p class="text-2xl font-bold {% if uptime_30d >= 99 %}text-emerald-400{% elif uptime_30d >= 90 %}text-yellow-400{% else %}text-red-400{% endif %}">
           {{ uptime_30d }}%
         </p>
       </div>
-      <div class="bg-[--ng-glass-bg] border border-[--ng-glass-border] backdrop-blur-2xl rounded-xl p-5">
+      <div class="bg-[--ng-glass-bg] border border-[--ng-glass-border] rounded-xl p-5">
         <p class="text-slate-500 text-xs uppercase tracking-wider mb-2">Avg latency</p>
         <p class="ng-heading text-2xl text-[--ng-text-primary]">{% if avg_latency is not none %}{{ avg_latency }} ms{% else %}<span class="text-slate-600">—</span>{% endif %}</p>
       </div>
 
       <!-- Latency mini-chart (spans 2 cols) -->
-      <div class="bg-[--ng-glass-bg] border border-[--ng-glass-border] backdrop-blur-2xl rounded-xl p-5 col-span-2">
+      <div class="bg-[--ng-glass-bg] border border-[--ng-glass-border] rounded-xl p-5 col-span-2">
         <div class="flex items-center justify-between mb-1">
           <p class="text-slate-500 text-xs uppercase tracking-wider">Latency  <span class="normal-case text-slate-600 ml-1">
             {% if min_latency is not none %}min {{ min_latency }}  /  max {{ max_latency }} ms{% endif %}
@@ -364,7 +364,7 @@
     </div>
 
     <!-- 30-day heatmap -->
-    <div class="bg-[--ng-glass-bg] border border-[--ng-glass-border] backdrop-blur-2xl rounded-xl p-6 mb-6">
+    <div class="bg-[--ng-glass-bg] border border-[--ng-glass-border] rounded-xl p-6 mb-6">
       <h2 class="ng-heading text-sm text-[--ng-text-secondary] mb-4">30-day availability</h2>
       <div class="flex gap-1">
         {% for sq in heatmap_30d %}
@@ -390,7 +390,7 @@
 
     <!-- Proxmox metrics (if this host is also a VM/LXC) -->
     {% if proxmox_guest %}
-    <div class="bg-[--ng-glass-bg] border border-[--ng-glass-border] backdrop-blur-2xl rounded-xl p-6 mb-6">
+    <div class="bg-[--ng-glass-bg] border border-[--ng-glass-border] rounded-xl p-6 mb-6">
       <div class="flex items-center justify-between mb-4">
         <div class="flex items-center gap-2">
           <h2 class="ng-heading text-sm text-[--ng-text-secondary]">Proxmox</h2>
@@ -496,7 +496,7 @@
 
     <!-- UniFi network info (if this host is seen as a client/device) -->
     {% if unifi_client %}
-    <div class="bg-[--ng-glass-bg] border border-[--ng-glass-border] backdrop-blur-2xl rounded-xl p-6 mb-6">
+    <div class="bg-[--ng-glass-bg] border border-[--ng-glass-border] rounded-xl p-6 mb-6">
       <div class="flex items-center justify-between mb-4">
         <div class="flex items-center gap-2">
           <svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -556,7 +556,7 @@
 
     <!-- Agent metrics (if a Nodeglow agent reports for this host) -->
     {% if agent_data %}
-    <div class="bg-[--ng-glass-bg] border border-[--ng-glass-border] backdrop-blur-2xl rounded-xl p-6 mb-6">
+    <div class="bg-[--ng-glass-bg] border border-[--ng-glass-border] rounded-xl p-6 mb-6">
       <div class="flex items-center justify-between mb-4">
         <div class="flex items-center gap-2">
           <svg class="w-4 h-4 text-ng-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -806,7 +806,7 @@
   {% if unifi_client and unifi_client.get('has_ports') %}
   <div id="panel-ports" class="hidden">
 
-    <div class="bg-[--ng-glass-bg] border border-[--ng-glass-border] backdrop-blur-2xl rounded-xl p-6 mb-6">
+    <div class="bg-[--ng-glass-bg] border border-[--ng-glass-border] rounded-xl p-6 mb-6">
       <div class="flex items-center justify-between mb-5">
         <h2 class="ng-heading text-sm text-[--ng-text-secondary]">Switch Ports</h2>
         <div class="flex gap-4 text-xs text-slate-500">
@@ -906,7 +906,7 @@
 
   <!-- ── SYSLOG TAB ──────────────────────────────────────────────────────── -->
   <div id="panel-syslog" class="hidden">
-    <div class="bg-[--ng-glass-bg] border border-[--ng-glass-border] backdrop-blur-2xl rounded-xl overflow-hidden">
+    <div class="bg-[--ng-glass-bg] border border-[--ng-glass-border] rounded-xl overflow-hidden">
       <div class="flex items-center justify-between px-5 py-3 border-b border-white/[0.08]">
         <div class="flex items-center gap-3">
           <h2 class="ng-heading text-sm text-[--ng-text-secondary]">Syslog</h2>

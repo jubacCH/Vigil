@@ -20,7 +20,7 @@
   </div>
 
   <!-- Add host form (hidden by default) -->
-  <div id="add-form" class="hidden bg-[--ng-glass-bg] border border-[--ng-glass-border] backdrop-blur-2xl rounded-xl p-5 mb-6">
+  <div id="add-form" class="hidden bg-[--ng-glass-bg] border border-[--ng-glass-border] rounded-xl p-5 mb-6">
     <h2 class="text-sm font-medium text-slate-300 mb-4">New host</h2>
     <form method="post" action="/ping/add" class="grid grid-cols-2 gap-3">
       <input type="text" name="name" placeholder="Display name (e.g. Router)"
@@ -80,7 +80,7 @@
 
   <!-- Host list -->
   {% if host_data %}
-  <div class="bg-[--ng-glass-bg] border border-[--ng-glass-border] backdrop-blur-2xl rounded-xl overflow-hidden">
+  <div class="bg-[--ng-glass-bg] border border-[--ng-glass-border] rounded-xl overflow-hidden">
     <table class="w-full text-sm">
       <thead>
         <tr class="border-b border-white/[0.08]">
@@ -212,7 +212,7 @@
   </div>
 
   {% else %}
-  <div class="bg-[--ng-glass-bg] border border-[--ng-glass-border] backdrop-blur-2xl rounded-xl p-16 text-center">
+  <div class="bg-[--ng-glass-bg] border border-[--ng-glass-border] rounded-xl p-16 text-center">
     <div class="w-12 h-12 rounded-full bg-white/[0.06] flex items-center justify-center mx-auto mb-4">
       <svg class="w-6 h-6 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"

@@ -55,7 +55,7 @@
   {% if templates %}
   <div class="space-y-2">
     {% for tpl in templates %}
-    <div class="bg-[--ng-glass-bg] border border-[--ng-glass-border] backdrop-blur-2xl rounded-xl px-5 py-3.5 hover:border-white/[0.12] transition-colors">
+    <div class="bg-[--ng-glass-bg] border border-[--ng-glass-border] rounded-xl px-5 py-3.5 hover:border-white/[0.12] transition-colors">
       <div class="flex items-start gap-4">
 
         <!-- Noise indicator -->
@@ -148,7 +148,7 @@
   {% endif %}
 
   {% else %}
-  <div class="bg-[--ng-glass-bg] border border-[--ng-glass-border] backdrop-blur-2xl rounded-xl p-12 text-center">
+  <div class="bg-[--ng-glass-bg] border border-[--ng-glass-border] rounded-xl p-12 text-center">
     <p class="text-slate-400 font-semibold">No templates learned yet</p>
     <p class="text-slate-500 text-sm mt-1">Templates are extracted automatically as syslog messages arrive. Check back after some logs have been processed.</p>
   </div>

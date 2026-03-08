@@ -559,7 +559,7 @@
         info: 'bg-ng-primary/15 border-ng-primary/25 text-ng-primary',
       };
       const toast = document.createElement('div');
-      toast.className = `pointer-events-auto px-4 py-2.5 rounded-lg border text-xs font-mono backdrop-blur-xl transition-all translate-x-full ${colors[type] || colors.info}`;
+      toast.className = `pointer-events-auto px-4 py-2.5 rounded-lg border text-xs font-mono transition-all translate-x-full ${colors[type] || colors.info}`;
       toast.textContent = msg;
       container.appendChild(toast);
       requestAnimationFrame(() => { toast.classList.remove('translate-x-full'); toast.classList.add('translate-x-0'); });
