@@ -80,12 +80,13 @@
         <th class="px-3 py-2 text-slate-500 font-medium text-[10px] uppercase tracking-wider">Message</th>
       </tr>
     </thead>
-    <tbody class="divide-y divide-white/[0.04]">
+    <tbody>
       {% for msg in messages %}
-      <tr class="group hover:bg-white/[0.02] transition-colors cursor-pointer
-        {% if msg.severity is not none and msg.severity <= 2 %}bg-red-500/[0.04]
-        {% elif msg.severity == 3 %}bg-orange-500/[0.03]
-        {% elif msg.severity == 4 %}bg-yellow-500/[0.02]{% endif %}"
+      <tr class="group hover:bg-slate-800/50 cursor-pointer border-b border-white/[0.04]
+        {% if msg.severity is not none and msg.severity <= 2 %}border-l-2 border-l-red-500/60
+        {% elif msg.severity == 3 %}border-l-2 border-l-orange-500/50
+        {% elif msg.severity == 4 %}border-l-2 border-l-yellow-500/40
+        {% else %}border-l-2 border-l-transparent{% endif %}"
           onclick="this.querySelector('.msg-full')?.classList.toggle('hidden');this.querySelector('.msg-trunc')?.classList.toggle('hidden')">
         <td class="px-3 py-1.5 text-slate-500 text-[11px] tabular-nums whitespace-nowrap font-mono">{{ msg.timestamp|localtime("%m-%d %H:%M:%S") }}</td>
         <td class="px-2 py-1.5">
