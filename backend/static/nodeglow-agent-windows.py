@@ -713,6 +713,8 @@ def get_recent_logs(max_events=200, levels=None):
 
     logs = []
     for log_name in ("System", "Application"):
+        # Use _ps directly with ConvertTo-Json inside the try block.
+        # _ps_json appends "| ConvertTo-Json" AFTER catch which breaks PowerShell parsing.
         ps_cmd = (
             f"try {{ "
             f"$startTime = {start_time_expr}; "
@@ -724,10 +726,17 @@ def get_recent_logs(max_events=200, levels=None):
             f"source = $_.ProviderName; "
             f"id = $_.Id; "
             f"msg = if ($_.Message) {{ if ($_.Message.Length -gt 500) {{ $_.Message.Substring(0,500) }} else {{ $_.Message }} }} else {{ '' }} "
-            f"}} }}"
-            f"}} catch [System.Exception] {{ }}"
+            f"}} }} | ConvertTo-Json -Compress"
+            f"}} catch {{ }}"
         )
-        result = _ps_json(ps_cmd, timeout=15)
+        raw = _ps(ps_cmd, timeout=15)
+        if not raw:
+            result = None
+        else:
+            try:
+                result = json.loads(raw)
+            except Exception:
+                result = None
         if result:
             # PowerShell returns single object (not array) if only 1 result
             if isinstance(result, dict):
