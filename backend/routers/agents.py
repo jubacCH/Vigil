@@ -559,10 +559,20 @@ if (-not $isAdmin) {{
 
 $Hostname = $env:COMPUTERNAME
 
-Write-Host "  [1/5] Creating install directory..."
+Write-Host "  [1/6] Stopping existing agent..."
+# Stop running agent process
+Get-Process | Where-Object {{ $_.Path -like "*nodeglow*" }} | Stop-Process -Force -ErrorAction SilentlyContinue
+Start-Sleep -Seconds 2
+# Also stop via scheduled task
+Stop-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
+
+Write-Host "  [2/6] Creating install directory..."
 New-Item -ItemType Directory -Force -Path $InstallDir | Out-Null
 
-Write-Host "  [2/5] Enrolling agent ($Hostname)..."
+# Clean up old files
+Remove-Item -Path "$InstallDir\\nodeglow-agent.exe.old" -Force -ErrorAction SilentlyContinue
+
+Write-Host "  [3/6] Enrolling agent ($Hostname)..."
 $body = @{{
     enrollment_key = $EnrollmentKey
     hostname = $Hostname
@@ -578,10 +588,10 @@ if (-not $response.token) {{
 $Token = $response.token
 Write-Host "  Enrolled successfully."
 
-Write-Host "  [3/5] Downloading agent..."
+Write-Host "  [4/6] Downloading agent..."
 Invoke-WebRequest -Uri "$Server/agents/download/windows" -OutFile "$InstallDir\\nodeglow-agent.exe" -UseBasicParsing
 
-Write-Host "  [4/5] Writing configuration..."
+Write-Host "  [5/6] Writing configuration..."
 @"
 {{
   "server": "$Server",
@@ -590,13 +600,13 @@ Write-Host "  [4/5] Writing configuration..."
 }}
 "@ | Set-Content -Path "$InstallDir\\config.json" -Encoding ASCII -Force
 
-Write-Host "  [5/5] Creating scheduled task..."
+Write-Host "  [6/6] Creating scheduled task..."
 $Action = New-ScheduledTaskAction -Execute "$InstallDir\\nodeglow-agent.exe" -WorkingDirectory $InstallDir
 $Trigger = New-ScheduledTaskTrigger -AtStartup
 $Settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1) -ExecutionTimeLimit (New-TimeSpan -Days 365)
 $Principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount -RunLevel Highest
 
-Write-Host "  [6/6] Testing connection..."
+Write-Host "  Testing connection..."
 try {{
     $testBody = @{{ hostname = $Hostname; platform = "Windows"; agent_version = "test" }} | ConvertTo-Json
     $testResp = Invoke-RestMethod -Uri "$Server/api/agent/report" -Method Post -Body $testBody -ContentType "application/json" -Headers @{{ Authorization = "Bearer $Token" }} -TimeoutSec 10

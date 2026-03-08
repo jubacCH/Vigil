@@ -9,5 +9,10 @@ __pycache__/
 venv/
 .pytest_cache/
 
+# PyInstaller
+backend/static/build/
+backend/static/dist/
+*.spec
+
 # macOS
 .DS_Store
