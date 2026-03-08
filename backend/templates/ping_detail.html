@@ -37,11 +37,15 @@
           </span>
         {% endif %}
 
+        {% if host.source == 'agent' %}
+        <span class="px-2 py-0.5 rounded-full text-xs font-mono bg-violet-500/10 text-violet-400">AGENT</span>
+        {% else %}
         {% for ct in (host.check_type or "icmp").split(",") %}{% set ct = ct.strip() %}
         <span class="px-2 py-0.5 rounded-full text-xs font-mono
           {% if ct == 'http' %}bg-blue-500/10 text-blue-400{% elif ct == 'https' %}bg-emerald-500/10 text-emerald-300{% elif ct == 'tcp' %}bg-purple-500/10 text-purple-400{% else %}bg-slate-500/10 text-slate-400{% endif %}">
           {{ ct | upper }}
         </span>{% endfor %}
+        {% endif %}
 
         {% if not host.enabled %}
           <span class="px-2 py-0.5 rounded-full bg-white/[0.06] text-slate-500 text-xs font-medium">disabled</span>
@@ -269,6 +273,7 @@
               <span class="px-1.5 py-0.5 rounded text-[10px]
                 {% if src == 'proxmox' %}bg-orange-500/10 text-orange-400
                 {% elif src == 'phpipam' %}bg-cyan-500/10 text-cyan-400
+                {% elif src == 'agent' %}bg-violet-500/10 text-violet-400
                 {% else %}bg-slate-500/10 text-slate-400{% endif %}">
                 {{ src }}
               </span>
@@ -285,10 +290,17 @@
             <span class="text-slate-500">Last check</span>
             <span class="text-slate-300">{% if latest %}{{ latest.timestamp.strftime("%H:%M:%S") }}{% else %}—{% endif %}</span>
           </div>
+          {% if host.source == 'agent' %}
+          <div class="flex justify-between text-xs">
+            <span class="text-slate-500">Check method</span>
+            <span class="text-violet-400">Agent heartbeat</span>
+          </div>
+          {% else %}
           <div class="flex justify-between text-xs">
             <span class="text-slate-500">Last latency</span>
             <span class="text-slate-300">{% if latest and latest.latency_ms %}{{ latest.latency_ms }} ms{% else %}—{% endif %}</span>
           </div>
+          {% endif %}
           {% if host.ssl_expiry_days is not none %}
           <div class="flex justify-between text-xs">
             <span class="text-slate-500">SSL expiry</span>

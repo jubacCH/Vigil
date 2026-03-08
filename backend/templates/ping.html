@@ -102,6 +102,9 @@
           <td class="px-5 py-3.5">
             <div class="flex items-center gap-2 flex-wrap">
               <p class="text-white font-medium">{{ d.host.name }}</p>
+              {% if d.host.source == 'agent' %}
+              <span class="px-1.5 py-0.5 rounded text-xs font-mono bg-violet-500/10 text-violet-400">AGENT</span>
+              {% else %}
               {% for ct in (d.host.check_type or "icmp").split(",") %}
               {% set ct = ct.strip() %}
               <span class="px-1.5 py-0.5 rounded text-xs font-mono
@@ -109,6 +112,7 @@
                 {{ ct | upper }}
               </span>
               {% endfor %}
+              {% endif %}
               {% if d.host.maintenance %}
               <span class="px-1.5 py-0.5 rounded text-xs bg-yellow-500/10 text-yellow-400 border border-yellow-500/20">
                 maintenance
@@ -128,6 +132,7 @@
               <span class="px-1 py-0 rounded text-[10px] leading-4
                 {% if src == 'proxmox' %}bg-orange-500/10 text-orange-400
                 {% elif src == 'phpipam' %}bg-cyan-500/10 text-cyan-400
+                {% elif src == 'agent' %}bg-violet-500/10 text-violet-400
                 {% else %}bg-slate-500/10 text-slate-500{% endif %}">
                 {{ src }}{% if d.host.source_detail %}: {{ d.host.source_detail }}{% endif %}
               </span>
@@ -156,7 +161,9 @@
             {% endif %}
           </td>
           <td class="px-5 py-3.5 text-slate-300 text-sm">
-            {% if d.latency is not none %}{{ d.latency }} ms{% else %}<span class="text-slate-600">—</span>{% endif %}
+            {% if d.host.source == 'agent' %}
+              <span class="text-violet-400/60 text-xs">heartbeat</span>
+            {% elif d.latency is not none %}{{ d.latency }} ms{% else %}<span class="text-slate-600">—</span>{% endif %}
           </td>
           {% for key in ['h24', 'd7', 'd30'] %}
           {% set pct = uptime_map.get(d.host.id, {}).get(key) %}
