@@ -1,27 +1,85 @@
-<!-- Partial: syslog table rows for host detail tab -->
+<!-- Partial: syslog table with filters for host detail tab -->
+
+<!-- Filters bar -->
+<div class="flex flex-wrap items-center gap-2 px-4 py-2.5 border-b border-white/[0.06] bg-white/[0.01]">
+  <!-- Severity filter -->
+  <div class="flex items-center gap-1">
+    {% set sev_active = (f_sev or "").split(",") %}
+    {% for sev_val, sev_info in [("2", ("CRIT", "red")), ("3", ("ERR", "orange")), ("4", ("WARN", "yellow")), ("6", ("INFO", "blue")), ("7", ("DBG", "slate"))] %}
+    <button onclick="toggleSev('{{ sev_val }}')"
+            class="px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase transition-all
+              {% if sev_val in sev_active and f_sev %}ring-1 ring-{{ sev_info[1] }}-400/50 bg-{{ sev_info[1] }}-500/20 text-{{ sev_info[1] }}-400
+              {% elif not f_sev %}bg-{{ sev_info[1] }}-500/20 text-{{ sev_info[1] }}-400
+              {% else %}bg-white/[0.03] text-slate-600 hover:text-slate-400{% endif %}">
+      {{ sev_info[0] }}
+    </button>
+    {% endfor %}
+  </div>
+
+  <div class="w-px h-4 bg-white/[0.08]"></div>
+
+  <!-- App filter -->
+  <select id="syslog-app-filter" onchange="applySyslogFilters()"
+          class="bg-white/[0.03] border border-white/[0.08] rounded text-[11px] text-slate-400 px-2 py-1 min-w-[90px]">
+    <option value="">All apps</option>
+    {% for a in app_names %}
+    <option value="{{ a }}" {% if f_app == a %}selected{% endif %}>{{ a[:25] }}</option>
+    {% endfor %}
+  </select>
+
+  <!-- Search -->
+  <div class="relative flex-1 min-w-[120px] max-w-[250px]">
+    <input type="text" id="syslog-search" value="{{ f_q or '' }}" placeholder="Search messages..."
+           onkeydown="if(event.key==='Enter')applySyslogFilters()"
+           class="w-full bg-white/[0.03] border border-white/[0.08] rounded text-[11px] text-slate-300 pl-7 pr-2 py-1 placeholder-slate-600">
+    <svg class="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+    </svg>
+  </div>
+
+  <!-- Sort toggle -->
+  <button onclick="toggleSyslogSort()" title="Toggle sort order"
+          class="p-1 rounded text-slate-500 hover:text-slate-300 hover:bg-white/[0.04] transition-colors">
+    <svg class="w-3.5 h-3.5 {% if f_sort == 'asc' %}rotate-180{% endif %}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4h13M3 8h9m-9 4h6m4 0l4 4m0 0l4-4m-4 4V4"/>
+    </svg>
+  </button>
+
+  <!-- Total count -->
+  <span class="text-[10px] text-slate-600 tabular-nums ml-auto">{{ "{:,}".format(total) }} msgs</span>
+</div>
+
 {% if not messages %}
-<div class="p-6 text-center text-slate-600 text-sm">No syslog messages for this host.</div>
+<div class="p-8 text-center text-slate-600 text-sm">
+  {% if f_sev or f_app or f_q %}
+  No messages match the current filters.
+  <button onclick="clearSyslogFilters()" class="text-blue-400 hover:underline ml-1">Clear filters</button>
+  {% else %}
+  No syslog messages for this host.
+  {% endif %}
+</div>
 {% else %}
 <div class="overflow-x-auto">
   <table class="w-full text-sm">
     <thead>
-      <tr class="border-b border-border text-left">
-        <th class="px-4 py-2 text-slate-500 font-medium text-xs uppercase tracking-wider w-[140px]">Time</th>
-        <th class="px-4 py-2 text-slate-500 font-medium text-xs uppercase tracking-wider w-[60px]">Sev</th>
-        <th class="px-4 py-2 text-slate-500 font-medium text-xs uppercase tracking-wider w-[100px]">App</th>
-        <th class="px-4 py-2 text-slate-500 font-medium text-xs uppercase tracking-wider">Message</th>
+      <tr class="border-b border-white/[0.06] text-left">
+        <th class="px-3 py-2 text-slate-500 font-medium text-[10px] uppercase tracking-wider w-[130px]">Time</th>
+        <th class="px-2 py-2 text-slate-500 font-medium text-[10px] uppercase tracking-wider w-[50px]">Sev</th>
+        <th class="px-2 py-2 text-slate-500 font-medium text-[10px] uppercase tracking-wider w-[90px]">App</th>
+        <th class="px-3 py-2 text-slate-500 font-medium text-[10px] uppercase tracking-wider">Message</th>
       </tr>
     </thead>
-    <tbody class="divide-y divide-border">
+    <tbody class="divide-y divide-white/[0.04]">
       {% for msg in messages %}
-      <tr class="hover:bg-white/[0.02] transition-colors
-        {% if msg.severity is not none and msg.severity <= 2 %}bg-red-500/[0.03]
-        {% elif msg.severity == 3 %}bg-orange-500/[0.02]
-        {% elif msg.severity == 4 %}bg-yellow-500/[0.02]{% endif %}">
-        <td class="px-4 py-2 text-slate-500 text-xs tabular-nums whitespace-nowrap">{{ msg.timestamp|localtime("%m-%d %H:%M:%S") }}</td>
-        <td class="px-4 py-2">
+      <tr class="group hover:bg-white/[0.02] transition-colors cursor-pointer
+        {% if msg.severity is not none and msg.severity <= 2 %}bg-red-500/[0.04]
+        {% elif msg.severity == 3 %}bg-orange-500/[0.03]
+        {% elif msg.severity == 4 %}bg-yellow-500/[0.02]{% endif %}"
+          onclick="this.querySelector('.msg-full')?.classList.toggle('hidden');this.querySelector('.msg-trunc')?.classList.toggle('hidden')">
+        <td class="px-3 py-1.5 text-slate-500 text-[11px] tabular-nums whitespace-nowrap font-mono">{{ msg.timestamp|localtime("%m-%d %H:%M:%S") }}</td>
+        <td class="px-2 py-1.5">
           {% if msg.severity is not none %}
-          <span class="px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase
+          <span class="inline-block px-1.5 py-0.5 rounded text-[9px] font-bold uppercase leading-none
             {% if msg.severity <= 2 %}bg-red-500/20 text-red-400
             {% elif msg.severity == 3 %}bg-orange-500/20 text-orange-400
             {% elif msg.severity == 4 %}bg-yellow-500/20 text-yellow-400
@@ -31,16 +89,97 @@
           </span>
           {% endif %}
         </td>
-        <td class="px-4 py-2 text-slate-500 text-xs truncate max-w-[100px]">{{ msg.app_name or '' }}</td>
-        <td class="px-4 py-2 text-slate-300 text-xs font-mono truncate max-w-[500px]" title="{{ msg.message }}">{{ msg.message[:200] }}</td>
+        <td class="px-2 py-1.5 text-slate-500 text-[11px] truncate max-w-[90px]" title="{{ msg.app_name or '' }}">{{ msg.app_name or '' }}</td>
+        <td class="px-3 py-1.5 text-slate-300 text-[11px] font-mono">
+          <div class="msg-trunc truncate max-w-full">{{ msg.message[:200] if msg.message else '' }}</div>
+          <div class="msg-full hidden whitespace-pre-wrap break-all text-slate-200">{{ msg.message or '' }}</div>
+        </td>
       </tr>
       {% endfor %}
     </tbody>
   </table>
 </div>
+
+<!-- Pagination -->
 {% if total_pages > 1 %}
-<div class="px-4 py-2 border-t border-border flex items-center justify-between">
-  <span class="text-slate-600 text-xs">Page {{ page }}/{{ total_pages }}</span>
+<div class="px-4 py-2 border-t border-white/[0.06] flex items-center justify-between">
+  <span class="text-slate-600 text-[11px] tabular-nums">Page {{ page }} of {{ total_pages }}</span>
+  <div class="flex items-center gap-1">
+    {% if page > 1 %}
+    <button onclick="loadSyslogPage({{ page - 1 }})"
+            class="px-2 py-0.5 rounded text-[11px] text-slate-400 hover:bg-white/[0.04] transition-colors">&larr; Prev</button>
+    {% endif %}
+    {% for p in range(1, total_pages + 1) %}
+      {% if p == page %}
+      <span class="px-2 py-0.5 rounded text-[11px] bg-blue-500/20 text-blue-400">{{ p }}</span>
+      {% elif p <= 3 or p >= total_pages - 1 or (p >= page - 1 and p <= page + 1) %}
+      <button onclick="loadSyslogPage({{ p }})"
+              class="px-2 py-0.5 rounded text-[11px] text-slate-500 hover:bg-white/[0.04] transition-colors">{{ p }}</button>
+      {% elif p == 4 or p == total_pages - 2 %}
+      <span class="text-slate-600 text-[11px]">...</span>
+      {% endif %}
+    {% endfor %}
+    {% if page < total_pages %}
+    <button onclick="loadSyslogPage({{ page + 1 }})"
+            class="px-2 py-0.5 rounded text-[11px] text-slate-400 hover:bg-white/[0.04] transition-colors">Next &rarr;</button>
+    {% endif %}
+  </div>
 </div>
 {% endif %}
 {% endif %}
+
+<script>
+(function() {
+  // Current filter state (read from rendered values)
+  const _hostId = {{ host_id }};
+  const _hours = {{ hours }};
+  let _sev = "{{ f_sev or '' }}";
+  let _sort = "{{ f_sort or 'desc' }}";
+
+  function _buildUrl(page) {
+    const app = document.getElementById('syslog-app-filter')?.value || '';
+    const q = document.getElementById('syslog-search')?.value || '';
+    let url = `/syslog/api/host/${_hostId}?hours=${_hours}&page=${page}&sort=${_sort}`;
+    if (_sev) url += `&sev=${_sev}`;
+    if (app) url += `&app=${encodeURIComponent(app)}`;
+    if (q) url += `&q=${encodeURIComponent(q)}`;
+    return url;
+  }
+
+  function _reload(page) {
+    const el = document.getElementById('syslog-content');
+    if (!el) return;
+    el.style.opacity = '0.5';
+    fetch(_buildUrl(page || 1))
+      .then(r => r.text())
+      .then(html => { el.innerHTML = html; el.style.opacity = '1'; })
+      .catch(() => { el.style.opacity = '1'; });
+  }
+
+  // Expose to global scope for onclick handlers
+  window.toggleSev = function(val) {
+    const parts = _sev ? _sev.split(',').filter(Boolean) : [];
+    const idx = parts.indexOf(val);
+    if (idx >= 0) parts.splice(idx, 1);
+    else parts.push(val);
+    _sev = parts.join(',');
+    _reload(1);
+  };
+
+  window.applySyslogFilters = function() { _reload(1); };
+  window.clearSyslogFilters = function() {
+    _sev = '';
+    _sort = 'desc';
+    const appEl = document.getElementById('syslog-app-filter');
+    if (appEl) appEl.value = '';
+    const qEl = document.getElementById('syslog-search');
+    if (qEl) qEl.value = '';
+    _reload(1);
+  };
+  window.toggleSyslogSort = function() {
+    _sort = _sort === 'desc' ? 'asc' : 'desc';
+    _reload(1);
+  };
+  window.loadSyslogPage = function(p) { _reload(p); };
+})();
+</script>

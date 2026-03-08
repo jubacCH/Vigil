@@ -909,7 +909,7 @@
     <div class="bg-[--ng-glass-bg] border border-[--ng-glass-border] backdrop-blur-2xl rounded-xl overflow-hidden">
       <div class="flex items-center justify-between px-5 py-3 border-b border-white/[0.08]">
         <div class="flex items-center gap-3">
-          <h2 class="ng-heading text-sm text-[--ng-text-secondary]">Syslog messages (24h)</h2>
+          <h2 class="ng-heading text-sm text-[--ng-text-secondary]">Syslog</h2>
           <select id="syslog-hours" class="ng-input text-xs py-1 w-[70px]" onchange="loadSyslog()">
             <option value="1">1h</option>
             <option value="6">6h</option>
@@ -918,7 +918,7 @@
             <option value="168">7d</option>
           </select>
         </div>
-        <a href="/syslog?host={{ host.hostname }}" class="text-xs text-indigo-400 hover:text-indigo-300 transition-colors">View all in Syslog →</a>
+        <a href="/syslog?host={{ host.hostname }}" class="text-xs text-indigo-400 hover:text-indigo-300 transition-colors">View all in Syslog &rarr;</a>
       </div>
       <div id="syslog-content">
         <div class="p-6 text-center text-slate-600 text-sm">Loading...</div>

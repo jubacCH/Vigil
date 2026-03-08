@@ -465,6 +465,10 @@ async def syslog_by_host(
     db: AsyncSession = Depends(get_db),
     hours: int = Query(24),
     page: int = Query(1, ge=1),
+    sev: str = Query(""),        # comma-separated severity filter, e.g. "2,3,4"
+    app: str = Query(""),        # app_name substring filter
+    q: str = Query(""),          # message search
+    sort: str = Query("desc"),   # "asc" or "desc"
 ):
     """Return syslog messages for a specific PingHost (used in host detail tab)."""
     since = datetime.utcnow() - timedelta(hours=hours)
@@ -482,15 +486,29 @@ async def syslog_by_host(
         if ping_host.name:
             host_filter = or_(host_filter, SyslogMessage.hostname.ilike(ping_host.name))
 
-    query = (
-        select(SyslogMessage)
-        .where(host_filter, SyslogMessage.timestamp >= since)
-        .order_by(SyslogMessage.timestamp.desc())
-    )
-    count_query = (
-        select(func.count(SyslogMessage.id))
-        .where(host_filter, SyslogMessage.timestamp >= since)
-    )
+    filters = [host_filter, SyslogMessage.timestamp >= since]
+
+    # Severity filter
+    if sev:
+        try:
+            sev_list = [int(s.strip()) for s in sev.split(",") if s.strip()]
+            if sev_list:
+                filters.append(SyslogMessage.severity.in_(sev_list))
+        except ValueError:
+            pass
+
+    # App filter
+    if app:
+        filters.append(SyslogMessage.app_name.ilike(f"%{app}%"))
+
+    # Message search
+    if q:
+        filters.append(SyslogMessage.message.ilike(f"%{q}%"))
+
+    sort_order = SyslogMessage.timestamp.asc() if sort == "asc" else SyslogMessage.timestamp.desc()
+
+    query = select(SyslogMessage).where(*filters).order_by(sort_order)
+    count_query = select(func.count(SyslogMessage.id)).where(*filters)
 
     total = (await db.execute(count_query)).scalar() or 0
     total_pages = max(1, (total + _PER_PAGE - 1) // _PER_PAGE)
@@ -500,6 +518,14 @@ async def syslog_by_host(
         query.offset((page - 1) * _PER_PAGE).limit(_PER_PAGE)
     )).scalars().all()
 
+    # Collect distinct app names for the filter dropdown
+    app_names = (await db.execute(
+        select(SyslogMessage.app_name)
+        .where(host_filter, SyslogMessage.timestamp >= since, SyslogMessage.app_name.isnot(None))
+        .distinct()
+        .order_by(SyslogMessage.app_name)
+    )).scalars().all()
+
     return templates.TemplateResponse("partials/syslog_table.html", {
         "request": request,
         "messages": messages,
@@ -507,6 +533,13 @@ async def syslog_by_host(
         "page": page,
         "total_pages": total_pages,
         "severity_labels": SEVERITY_LABELS,
+        "host_id": host_id,
+        "hours": hours,
+        "f_sev": sev,
+        "f_app": app,
+        "f_q": q,
+        "f_sort": sort,
+        "app_names": [a for a in app_names if a],
     })
 
 

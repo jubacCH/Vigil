@@ -210,8 +210,9 @@ async def agent_logs(request: Request):
     except Exception:
         host_id = None
 
-    # Insert logs into SyslogMessage table
+    # Insert logs into SyslogMessage table (with dedup to avoid agent overlap)
     from models.syslog import SyslogMessage
+    from sqlalchemy import and_
     count = 0
     try:
         async with AsyncSessionLocal() as db:
@@ -222,6 +223,23 @@ async def agent_logs(request: Request):
                 except Exception:
                     ts = datetime.utcnow()
 
+                app_name = entry.get("app_name", "")
+                message = entry.get("message", "")[:2000]
+
+                # Dedup: skip if exact same timestamp+app+severity already exists for this host
+                exists = (await db.execute(
+                    select(SyslogMessage.id)
+                    .where(and_(
+                        SyslogMessage.timestamp == ts,
+                        SyslogMessage.hostname == hostname,
+                        SyslogMessage.app_name == app_name,
+                        SyslogMessage.severity == entry.get("severity", 6),
+                    ))
+                    .limit(1)
+                )).scalar()
+                if exists:
+                    continue
+
                 msg = SyslogMessage(
                     timestamp=ts,
                     received_at=datetime.utcnow(),
@@ -229,8 +247,8 @@ async def agent_logs(request: Request):
                     hostname=hostname,
                     facility=entry.get("facility"),
                     severity=entry.get("severity", 6),
-                    app_name=entry.get("app_name", ""),
-                    message=entry.get("message", "")[:2000],
+                    app_name=app_name,
+                    message=message,
                     host_id=host_id,
                 )
                 db.add(msg)
