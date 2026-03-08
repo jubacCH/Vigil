@@ -1,0 +1,66 @@
+{#
+  Reusable UI component macros for Nodeglow templates.
+
+  Usage:
+    {% from "macros/cards.html" import metric_card, metric_bar, alert_msg, info_row, delete_btn %}
+#}
+
+{# Centered metric card with optional color thresholds #}
+{% macro metric_card(value, label, suffix="", warn=none, crit=none) %}
+<div class="glass-card p-4 text-center">
+  <p class="text-2xl font-bold
+    {% if crit is not none and value is not none and value >= crit %}text-ng-critical
+    {% elif warn is not none and value is not none and value >= warn %}text-ng-warning
+    {% else %}text-[--ng-text-primary]{% endif %}">
+    {{ value if value is not none else "—" }}{% if suffix %}<span class="text-sm text-[--ng-text-muted]">{{ suffix }}</span>{% endif %}
+  </p>
+  <p class="metric-label !text-[10px]">{{ label }}</p>
+</div>
+{% endmacro %}
+
+{# Progress bar with label, percentage, and conditional colors #}
+{% macro metric_bar(label, pct, detail="", warn=50, crit=80) %}
+<div>
+  <div class="flex justify-between mb-1">
+    <span class="text-[--ng-text-muted] text-xs">{{ label }}</span>
+    <span class="text-xs font-mono
+      {% if pct >= crit %}text-ng-critical{% elif pct >= warn %}text-ng-warning{% else %}text-ng-success{% endif %}">{{ pct|round(1) }}%</span>
+  </div>
+  <div class="metric-bar">
+    <div class="metric-bar-fill {% if pct >= crit %}!bg-ng-critical{% elif pct >= warn %}!bg-ng-warning{% endif %}"
+         style="width:{{ pct|round(1) }}%"></div>
+  </div>
+  {% if detail %}
+  <p class="text-[9px] text-[--ng-text-muted] font-mono mt-0.5">{{ detail }}</p>
+  {% endif %}
+</div>
+{% endmacro %}
+
+{# Alert/notification message block #}
+{% macro alert_msg(message, type="success") %}
+{% set styles = {
+  "success": "bg-ng-success/10 border-ng-success/20 text-ng-success",
+  "error":   "bg-ng-critical/10 border-ng-critical/20 text-ng-critical",
+  "warning": "bg-ng-warning/10 border-ng-warning/20 text-ng-warning",
+  "info":    "bg-ng-primary/10 border-ng-primary/20 text-ng-primary",
+} %}
+<div class="{{ styles.get(type, styles.info) }} border px-4 py-3 rounded-lg mb-4 text-sm">{{ message }}</div>
+{% endmacro %}
+
+{# Key-value info row #}
+{% macro info_row(label, value, mono=true) %}
+<div class="flex justify-between gap-4">
+  <span class="text-[--ng-text-muted] text-xs">{{ label }}</span>
+  <span class="text-[--ng-text-secondary] text-xs {% if mono %}font-mono{% endif %} text-right truncate max-w-[60%]">{{ value if value else "—" }}</span>
+</div>
+{% endmacro %}
+
+{# Standard delete button #}
+{% macro delete_btn(url, label="Delete", confirm_msg="Are you sure?") %}
+<form method="post" action="{{ url }}" onsubmit="return confirm('{{ confirm_msg }}')" class="inline">
+  <button type="submit"
+          class="bg-ng-critical/10 hover:bg-ng-critical/20 text-ng-critical border border-ng-critical/20 px-3 py-1.5 rounded-lg text-sm transition-colors">
+    {{ label }}
+  </button>
+</form>
+{% endmacro %}

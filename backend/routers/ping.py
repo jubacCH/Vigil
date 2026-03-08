@@ -96,15 +96,25 @@ def _uptime_pct(results: list) -> float:
 async def api_status(db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(PingHost).where(PingHost.enabled == True))
     hosts = result.scalars().all()
+    host_ids = [h.id for h in hosts]
+
+    # Batch: latest result per host in one query (avoids N+1)
+    latest_by_host: dict[int, PingResult] = {}
+    if host_ids:
+        latest_sub = (
+            select(PingResult.host_id, func.max(PingResult.id).label("max_id"))
+            .where(PingResult.host_id.in_(host_ids))
+            .group_by(PingResult.host_id)
+            .subquery()
+        )
+        latest_rows = (await db.execute(
+            select(PingResult).join(latest_sub, PingResult.id == latest_sub.c.max_id)
+        )).scalars().all()
+        latest_by_host = {r.host_id: r for r in latest_rows}
+
     out = []
     for host in hosts:
-        latest = await db.execute(
-            select(PingResult)
-            .where(PingResult.host_id == host.id)
-            .order_by(PingResult.timestamp.desc())
-            .limit(1)
-        )
-        lr = latest.scalar_one_or_none()
+        lr = latest_by_host.get(host.id)
         out.append({
             "id": host.id,
             "name": host.name,

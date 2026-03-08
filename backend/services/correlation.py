@@ -71,6 +71,18 @@ async def _find_or_create_incident(
         summary=summary,
         detail=detail,
     ))
+
+    # Send notification for new incidents
+    try:
+        from notifications import notify
+        await notify(
+            f"🔴 Incident: {title}",
+            summary,
+            severity=severity,
+        )
+    except Exception as exc:
+        log.warning("Failed to send incident notification: %s", exc)
+
     return incident
 
 
@@ -297,6 +309,15 @@ async def _auto_resolve(db):
                     event_type="resolved",
                     summary="Auto-resolved: error rate returned to normal",
                 ))
+                try:
+                    from notifications import notify
+                    await notify(
+                        f"✅ Resolved: {incident.title}",
+                        "Auto-resolved: error rate returned to normal",
+                        severity="info",
+                    )
+                except Exception as exc:
+                    log.warning("Failed to send resolve notification: %s", exc)
             continue
 
         if not incident.host_ids_hash:
@@ -346,6 +367,15 @@ async def _auto_resolve(db):
                 event_type="resolved",
                 summary="Auto-resolved: affected hosts are back online",
             ))
+            try:
+                from notifications import notify
+                await notify(
+                    f"✅ Resolved: {incident.title}",
+                    "Auto-resolved: affected hosts are back online",
+                    severity="info",
+                )
+            except Exception as exc:
+                log.warning("Failed to send resolve notification: %s", exc)
 
 
 # ── Main entry point ────────────────────────────────────────────────────────
