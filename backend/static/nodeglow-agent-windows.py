@@ -1014,29 +1014,28 @@ def check_and_update(server):
                     except Exception:
                         pass
 
-                bat_path = os.path.join(own_dir, "_update.bat")
+                # Write a VBScript launcher that waits, then starts the new exe
+                # (VBScript works reliably in detached/background context unlike batch+start)
+                vbs_path = os.path.join(own_dir, "_restart.vbs")
                 try:
                     os.rename(own_path, old_backup)
                     shutil.move(tmp_path, own_path)
                     log.info("Updated successfully (v%s), restarting via launcher...", __version__)
-                    # Batch waits for us to exit, then starts the new exe cleanly
-                    with open(bat_path, "w") as bf:
-                        bf.write(f'@echo off\n')
-                        bf.write(f'timeout /t 2 /nobreak >nul\n')
-                        bf.write(f'start "" "{own_path}"\n')
-                        bf.write(f'del "%~f0"\n')
+                    with open(vbs_path, "w") as vf:
+                        vf.write(f'WScript.Sleep 3000\n')
+                        vf.write(f'Set ws = CreateObject("WScript.Shell")\n')
+                        vf.write(f'ws.Run """{own_path}""", 0, False\n')
                 except PermissionError:
-                    # Rename failed — batch must also move the file
                     log.warning("Cannot rename running exe, using deferred update")
-                    with open(bat_path, "w") as bf:
-                        bf.write(f'@echo off\n')
-                        bf.write(f'timeout /t 3 /nobreak >nul\n')
-                        bf.write(f'move /Y "{tmp_path}" "{own_path}"\n')
-                        bf.write(f'start "" "{own_path}"\n')
-                        bf.write(f'del "%~f0"\n')
+                    with open(vbs_path, "w") as vf:
+                        vf.write(f'Set fso = CreateObject("Scripting.FileSystemObject")\n')
+                        vf.write(f'WScript.Sleep 3000\n')
+                        vf.write(f'fso.MoveFile "{tmp_path}", "{own_path}"\n')
+                        vf.write(f'Set ws = CreateObject("WScript.Shell")\n')
+                        vf.write(f'ws.Run """{own_path}""", 0, False\n')
 
                 subprocess.Popen(
-                    ["cmd", "/c", bat_path],
+                    ["wscript", "//B", vbs_path],
                     creationflags=0x00000208,  # CREATE_NEW_PROCESS_GROUP | DETACHED_PROCESS
                 )
             else:
@@ -1095,7 +1094,7 @@ def main():
     # Clean up leftover files from previous updates
     if getattr(sys, 'frozen', False):
         own_dir = os.path.dirname(sys.executable)
-        for leftover in [sys.executable + ".old", os.path.join(own_dir, "_update.bat")]:
+        for leftover in [sys.executable + ".old", os.path.join(own_dir, "_update.bat"), os.path.join(own_dir, "_restart.vbs")]:
             if os.path.exists(leftover):
                 try:
                     os.remove(leftover)
