@@ -1014,30 +1014,35 @@ def check_and_update(server):
                     except Exception:
                         pass
 
-                # Write a VBScript launcher that waits, then starts the new exe
-                # (VBScript works reliably in detached/background context unlike batch+start)
-                vbs_path = os.path.join(own_dir, "_restart.vbs")
+                # Use a one-shot Scheduled Task for restart — most reliable method on Windows.
+                # The task runs in a clean session, avoiding _MEI temp dir inheritance.
+                task_name = "NodeglowAgentRestart"
                 try:
                     os.rename(own_path, old_backup)
                     shutil.move(tmp_path, own_path)
-                    log.info("Updated successfully (v%s), restarting via launcher...", __version__)
-                    with open(vbs_path, "w") as vf:
-                        vf.write(f'WScript.Sleep 3000\n')
-                        vf.write(f'Set ws = CreateObject("WScript.Shell")\n')
-                        vf.write(f'ws.Run """{own_path}""", 0, False\n')
+                    log.info("Updated successfully (v%s), scheduling restart...", __version__)
                 except PermissionError:
-                    log.warning("Cannot rename running exe, using deferred update")
-                    with open(vbs_path, "w") as vf:
-                        vf.write(f'Set fso = CreateObject("Scripting.FileSystemObject")\n')
-                        vf.write(f'WScript.Sleep 3000\n')
-                        vf.write(f'fso.MoveFile "{tmp_path}", "{own_path}"\n')
-                        vf.write(f'Set ws = CreateObject("WScript.Shell")\n')
-                        vf.write(f'ws.Run """{own_path}""", 0, False\n')
+                    # Can't rename running exe — write new exe next to it
+                    # and use the task to do the swap
+                    log.warning("Cannot rename running exe, deferred swap")
+                    new_path = own_path + ".new"
+                    shutil.move(tmp_path, new_path)
+                    # Task will move .new over the original after we exit
+                    swap_cmd = f'cmd /c timeout /t 2 /nobreak >nul & move /Y "{new_path}" "{own_path}" & "{own_path}"'
+                    subprocess.Popen(swap_cmd, shell=True, creationflags=0x00000208)
+                    sys.exit(0)
 
-                subprocess.Popen(
-                    ["wscript", "//B", vbs_path],
-                    creationflags=0x00000208,  # CREATE_NEW_PROCESS_GROUP | DETACHED_PROCESS
+                # Create a one-shot scheduled task that starts in 5 seconds
+                schtasks_cmd = (
+                    f'schtasks /create /tn "{task_name}" /tr "\"{own_path}\"" '
+                    f'/sc once /st 00:00 /f /rl highest'
                 )
+                os.system(schtasks_cmd)
+                # Run it immediately
+                os.system(f'schtasks /run /tn "{task_name}"')
+                # Schedule cleanup (delete the task after 30s)
+                cleanup_cmd = f'cmd /c timeout /t 30 /nobreak >nul & schtasks /delete /tn "{task_name}" /f'
+                subprocess.Popen(cleanup_cmd, shell=True, creationflags=0x00000208)
             else:
                 # Script mode: just replace the file and re-exec
                 shutil.move(tmp_path, own_path)
@@ -1094,7 +1099,7 @@ def main():
     # Clean up leftover files from previous updates
     if getattr(sys, 'frozen', False):
         own_dir = os.path.dirname(sys.executable)
-        for leftover in [sys.executable + ".old", os.path.join(own_dir, "_update.bat"), os.path.join(own_dir, "_restart.vbs")]:
+        for leftover in [sys.executable + ".old", os.path.join(own_dir, "_update.bat"), os.path.join(own_dir, "_restart.vbs"), sys.executable + ".new"]:
             if os.path.exists(leftover):
                 try:
                     os.remove(leftover)
