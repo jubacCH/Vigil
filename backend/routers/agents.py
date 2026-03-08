@@ -10,7 +10,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
+from templating import templates
 from sqlalchemy import delete, select, update
 
 from database import AsyncSessionLocal, PingHost, PingResult, get_setting, set_setting
@@ -19,7 +19,6 @@ from services.websocket import broadcast_agent_metric
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
-templates = Jinja2Templates(directory="templates")
 
 
 async def _get_enrollment_key() -> str:

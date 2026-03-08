@@ -45,7 +45,7 @@
 </div>
 {% endif %}
 
-{% if snap %}<p class="text-xs text-[--ng-text-muted] mb-4 font-mono">Last updated: {{ snap.timestamp.strftime('%Y-%m-%d %H:%M:%S') if snap.timestamp else '—' }}</p>{% endif %}
+{% if snap %}<p class="text-xs text-[--ng-text-muted] mb-4 font-mono">Last updated: {{ snap.timestamp|localtime if snap.timestamp else '—' }}</p>{% endif %}
 
 {% if data %}
 <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">

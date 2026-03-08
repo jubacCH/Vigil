@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import HTMLResponse, StreamingResponse
-from fastapi.templating import Jinja2Templates
+from templating import templates, localtime
 from sqlalchemy import delete, func, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -17,7 +17,6 @@ from models.syslog import (
 )
 
 router = APIRouter(prefix="/syslog")
-templates = Jinja2Templates(directory="templates")
 
 _PER_PAGE = 100
 
@@ -235,7 +234,7 @@ async def syslog_page(
         )).scalars().all()
         intelligence["new_templates"] = [
             {"template": t.template[:120], "count": t.count, "tags": t.tags,
-             "first_seen": t.first_seen.strftime("%H:%M") if t.first_seen else ""}
+             "first_seen": localtime(t.first_seen, "%H:%M") if t.first_seen else ""}
             for t in new_tpls
         ]
 
@@ -310,7 +309,7 @@ async def _build_rate_chart(db: AsyncSession, since: datetime, bucket_min: int) 
     # Build time labels and per-severity counts
     buckets = {}
     for bucket_ts, sev, cnt in rows:
-        ts_str = bucket_ts.strftime("%H:%M") if bucket_ts else "?"
+        ts_str = localtime(bucket_ts, "%H:%M") if bucket_ts else "?"
         if ts_str not in buckets:
             buckets[ts_str] = {}
         buckets[ts_str][int(sev)] = buckets[ts_str].get(int(sev), 0) + cnt
@@ -390,7 +389,7 @@ async def syslog_stream(
 
                 # Format as SSE
                 data = {
-                    "timestamp": msg["timestamp"].strftime("%m-%d %H:%M:%S") if isinstance(msg["timestamp"], datetime) else str(msg["timestamp"]),
+                    "timestamp": localtime(msg["timestamp"], "%m-%d %H:%M:%S") if isinstance(msg["timestamp"], datetime) else str(msg["timestamp"]),
                     "severity": msg.get("severity"),
                     "severity_label": SEVERITY_LABELS.get(msg.get("severity"), "?"),
                     "hostname": msg.get("hostname") or "",
@@ -614,7 +613,7 @@ async def smart_feed(
 
         results.append({
             "id": msg.id,
-            "timestamp": msg.timestamp.strftime("%m-%d %H:%M:%S"),
+            "timestamp": localtime(msg.timestamp, "%m-%d %H:%M:%S"),
             "severity": msg.severity,
             "severity_label": SEVERITY_LABELS.get(msg.severity, "?"),
             "hostname": msg.hostname or "",

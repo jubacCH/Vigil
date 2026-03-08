@@ -82,9 +82,9 @@
 
       <!-- Time -->
       <div class="shrink-0 text-right">
-        <p class="text-slate-500 text-xs tabular-nums">{{ inc.created_at.strftime("%d.%m. %H:%M") }}</p>
+        <p class="text-slate-500 text-xs tabular-nums">{{ inc.created_at|localtime("%d.%m. %H:%M") }}</p>
         {% if inc.status == 'resolved' and inc.resolved_at %}
-        <p class="text-emerald-500/60 text-[10px] mt-0.5">resolved {{ inc.resolved_at.strftime("%H:%M") }}</p>
+        <p class="text-emerald-500/60 text-[10px] mt-0.5">resolved {{ inc.resolved_at|localtime("%H:%M") }}</p>
         {% endif %}
       </div>
 

@@ -18,7 +18,7 @@
           {% else %}bg-ng-primary/20 text-ng-primary{% endif %}">{{ inc.severity[:4] }}</span>
         <div class="flex-1 min-w-0">
           <p class="text-[--ng-text-primary] text-xs truncate group-hover:text-ng-primary transition-colors">{{ inc.title }}</p>
-          <p class="text-[--ng-text-muted] text-[10px] font-mono">{{ inc.created_at.strftime("%d.%m %H:%M") }}</p>
+          <p class="text-[--ng-text-muted] text-[10px] font-mono">{{ inc.created_at|localtime("%d.%m %H:%M") }}</p>
         </div>
         <span class="px-1.5 py-0.5 rounded text-[9px] font-mono shrink-0
           {% if inc.status == 'open' %}bg-ng-critical/15 text-ng-critical

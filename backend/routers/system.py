@@ -10,14 +10,13 @@ from datetime import datetime, timedelta
 
 import psutil
 from fastapi import APIRouter, Depends, Request
-from fastapi.templating import Jinja2Templates
+from templating import templates, localtime
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db
 
 router = APIRouter()
-templates = Jinja2Templates(directory="templates")
 
 
 def _collect_system_info() -> dict:
@@ -45,7 +44,7 @@ def _collect_system_info() -> dict:
         "pid": os.getpid(),
         "uptime_seconds": uptime_seconds,
         "uptime_human": _format_duration(uptime_seconds),
-        "start_time": datetime.fromtimestamp(start_ts).strftime("%Y-%m-%d %H:%M:%S") if start_ts else "—",
+        "start_time": localtime(datetime.utcfromtimestamp(start_ts), "%Y-%m-%d %H:%M:%S") if start_ts else "—",
         "git_commit": git_commit,
     }
 
@@ -189,8 +188,8 @@ async def system_status(request: Request, db: AsyncSession = Depends(get_db)):
             "config_count": row.config_count or 0,
             "snapshot_count": max(row.snapshot_count or 0, 0),
             "syslog_count": max(row.syslog_count or 0, 0),
-            "oldest_ping": row.oldest_ping.strftime("%Y-%m-%d %H:%M") if row.oldest_ping else "—",
-            "newest_ping": row.newest_ping.strftime("%Y-%m-%d %H:%M") if row.newest_ping else "—",
+            "oldest_ping": localtime(row.oldest_ping, "%Y-%m-%d %H:%M") if row.oldest_ping else "—",
+            "newest_ping": localtime(row.newest_ping, "%Y-%m-%d %H:%M") if row.newest_ping else "—",
         }
         # Top tables by size
         tt_rows = (await db.execute(text("""
@@ -239,7 +238,7 @@ async def system_status(request: Request, db: AsyncSession = Depends(get_db)):
                 "id": job.id,
                 "name": job.name or job.id,
                 "trigger": str(job.trigger),
-                "next_run": next_run.strftime("%H:%M:%S") if next_run else "paused",
+                "next_run": localtime(next_run, "%H:%M:%S") if next_run else "paused",
             })
     except Exception:
         pass
@@ -263,7 +262,7 @@ async def system_status(request: Request, db: AsyncSession = Depends(get_db)):
                 "type": r.type,
                 "name": r.name,
                 "ok": r.ok,
-                "last_check": r.ts.strftime("%H:%M:%S") if r.ts else "—",
+                "last_check": localtime(r.ts, "%H:%M:%S") if r.ts else "—",
                 "error": r.error[:100] if r.error else None,
             })
     except Exception:

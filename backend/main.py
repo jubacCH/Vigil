@@ -128,9 +128,12 @@ async def inject_globals(request: Request, call_next):
     else:
         request.state.current_user = None
 
+    from templating import current_tz
     async with AsyncSessionLocal() as db:
         request.state.site_name = await get_setting(db, "site_name", "NODEGLOW")
         request.state.nav_counts = await _get_nav_counts(db)
+        tz_name = await get_setting(db, "timezone", "UTC")
+        current_tz.set(tz_name)
     return await call_next(request)
 
 

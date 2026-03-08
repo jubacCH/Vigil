@@ -7,7 +7,7 @@ from typing import List
 
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
+from templating import templates, localtime
 from sqlalchemy import cast, func, select, Integer
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -20,7 +20,6 @@ from services import integration as int_svc
 from services import snapshot as snap_svc
 
 router = APIRouter(prefix="/ping")
-templates = Jinja2Templates(directory="templates")
 
 
 async def _dns_resolve(hostname: str) -> dict:
@@ -252,17 +251,17 @@ async def ping_detail(host_id: int, request: Request, db: AsyncSession = Depends
         if rows:
             step = max(1, len(rows) // max_pts)
             sampled = rows[::step]
-            labels = [r.timestamp.strftime(fmt) for r in sampled]
+            labels = [localtime(r.timestamp, fmt) for r in sampled]
             values = [round(r.latency_ms, 2) if r.success and r.latency_ms else 0 for r in sampled]
         else:
             labels, values = [], []
         # Prepend window start if not already there
-        start_lbl = window_start.strftime(fmt)
+        start_lbl = localtime(window_start, fmt)
         if not labels or labels[0] != start_lbl:
             labels.insert(0, start_lbl)
             values.insert(0, 0)
         # Append window end (now)
-        end_lbl = window_end.strftime(fmt)
+        end_lbl = localtime(window_end, fmt)
         if labels[-1] != end_lbl:
             labels.append(end_lbl)
             values.append(values[-1])
@@ -355,7 +354,7 @@ async def ping_detail(host_id: int, request: Request, db: AsyncSession = Depends
                 step = max(1, len(rows) // max_pts)
                 sampled = rows[::step]
                 return {
-                    "labels": [r["ts"].strftime(fmt) for r in sampled],
+                    "labels": [localtime(r["ts"], fmt) for r in sampled],
                     "cpu":    [r["cpu"]  for r in sampled],
                     "mem":    [r["mem"]  for r in sampled],
                     "disk":   [r["disk"] for r in sampled],

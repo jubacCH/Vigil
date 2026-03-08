@@ -284,11 +284,11 @@
           </div>
           <div class="flex justify-between text-xs">
             <span class="text-slate-500">Added</span>
-            <span class="text-slate-300">{{ host.created_at.strftime("%d.%m.%Y %H:%M") if host.created_at else "—" }}</span>
+            <span class="text-slate-300">{{ host.created_at|localtime("%d.%m.%Y %H:%M") if host.created_at else "—" }}</span>
           </div>
           <div class="flex justify-between text-xs">
             <span class="text-slate-500">Last check</span>
-            <span class="text-slate-300">{% if latest %}{{ latest.timestamp.strftime("%H:%M:%S") }}{% else %}—{% endif %}</span>
+            <span class="text-slate-300">{% if latest %}{{ latest.timestamp|localtime("%H:%M:%S") }}{% else %}—{% endif %}</span>
           </div>
           {% if host.source == 'agent' %}
           <div class="flex justify-between text-xs">
@@ -400,7 +400,7 @@
           </span>
           <span class="text-slate-600 text-xs">{{ proxmox_guest.cluster_name }} / {{ proxmox_guest.node }}</span>
         </div>
-        <span class="text-slate-600 text-xs">{{ proxmox_guest.snap_time.strftime("%H:%M") }}</span>
+        <span class="text-slate-600 text-xs">{{ proxmox_guest.snap_time|localtime("%H:%M") }}</span>
       </div>
       <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
 
@@ -572,7 +572,7 @@
           {% if agent_data.get('os_info') %}
           <span class="text-[--ng-text-muted] text-xs font-mono">{{ agent_data.os_info.get('name', '') }} {{ agent_data.os_info.get('version', '') }}</span>
           {% endif %}
-          <span class="text-[--ng-text-muted] text-xs">{{ agent_data._snap.timestamp.strftime("%H:%M") }}</span>
+          <span class="text-[--ng-text-muted] text-xs">{{ agent_data._snap.timestamp|localtime("%H:%M") }}</span>
         </div>
       </div>
 
@@ -1149,7 +1149,7 @@
     const cpuData = [];
     const memData = [];
     {% for s in agent_snapshots %}
-    labels.push('{{ s.timestamp.strftime("%H:%M") }}');
+    labels.push('{{ s.timestamp|localtime("%H:%M") }}');
     cpuData.push({{ s.cpu_pct if s.cpu_pct is not none else 'null' }});
     memData.push({{ s.mem_pct if s.mem_pct is not none else 'null' }});
     {% endfor %}

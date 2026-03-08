@@ -70,7 +70,7 @@
             {% endif %}
             <div class="flex justify-between text-xs">
                 <span class="text-[--ng-text-muted]">Last seen</span>
-                <span class="text-[--ng-text-secondary]">{{ agent.last_seen.strftime('%Y-%m-%d %H:%M:%S') if agent.last_seen else 'never' }}</span>
+                <span class="text-[--ng-text-secondary]">{{ agent.last_seen|localtime if agent.last_seen else 'never' }}</span>
             </div>
             {% if latest %}
             <div class="flex justify-between text-xs">

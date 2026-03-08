@@ -12,7 +12,7 @@ import logging
 
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
+from templating import templates
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from integrations import get_registry, get_integration
@@ -23,7 +23,6 @@ from services import snapshot as snap_svc
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
-templates = Jinja2Templates(directory="templates")
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────

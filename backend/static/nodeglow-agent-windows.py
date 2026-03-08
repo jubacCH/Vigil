@@ -1124,7 +1124,7 @@ def main():
     log.info("auto-update check every 5 minutes")
 
     update_interval = 300  # 5 minutes
-    last_update_check = 0
+    last_update_check = time.time()  # don't check immediately on startup (avoids loop after update)
 
     log_interval = 60  # collect logs every 60 seconds
     last_log_send = 0

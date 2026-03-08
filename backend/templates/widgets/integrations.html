@@ -27,7 +27,7 @@
           <p class="text-[--ng-text-muted] text-[10px] font-mono mt-0.5">{{ i.label }}</p>
         </div>
         {% if i.cached_at %}
-        <span class="text-[--ng-text-muted] text-[10px] font-mono ml-1 shrink-0">{{ i.cached_at.strftime("%H:%M") }}</span>
+        <span class="text-[--ng-text-muted] text-[10px] font-mono ml-1 shrink-0">{{ i.cached_at|localtime("%H:%M") }}</span>
         {% endif %}
       </a>
       {% endfor %}

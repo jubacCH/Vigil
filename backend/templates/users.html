@@ -86,7 +86,7 @@
             {% endif %}
           </td>
           <td class="px-5 py-3.5 text-slate-500 text-xs">
-            {{ u.created_at.strftime('%Y-%m-%d') if u.created_at else '—' }}
+            {{ u.created_at|localtime('%Y-%m-%d') if u.created_at else '—' }}
           </td>
           <td class="px-5 py-3.5 text-right">
             <div class="flex items-center justify-end gap-2">

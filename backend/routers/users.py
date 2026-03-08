@@ -1,14 +1,13 @@
 import bcrypt
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
+from templating import templates
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import User, get_db
 
 router = APIRouter(prefix="/users")
-templates = Jinja2Templates(directory="templates")
 
 VALID_ROLES = {"admin", "editor", "readonly"}
 

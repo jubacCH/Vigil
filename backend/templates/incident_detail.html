@@ -47,11 +47,11 @@
   <div class="grid grid-cols-4 gap-4 mb-6">
     <div class="bg-[--ng-glass-bg] border border-[--ng-glass-border] backdrop-blur-2xl rounded-xl p-4">
       <p class="text-slate-500 text-xs uppercase tracking-wider mb-1">Created</p>
-      <p class="text-white text-sm font-medium">{{ incident.created_at.strftime("%d.%m.%Y %H:%M:%S") }}</p>
+      <p class="text-white text-sm font-medium">{{ incident.created_at|localtime("%d.%m.%Y %H:%M:%S") }}</p>
     </div>
     <div class="bg-[--ng-glass-bg] border border-[--ng-glass-border] backdrop-blur-2xl rounded-xl p-4">
       <p class="text-slate-500 text-xs uppercase tracking-wider mb-1">Last updated</p>
-      <p class="text-white text-sm font-medium">{{ incident.updated_at.strftime("%d.%m.%Y %H:%M:%S") }}</p>
+      <p class="text-white text-sm font-medium">{{ incident.updated_at|localtime("%d.%m.%Y %H:%M:%S") }}</p>
     </div>
     <div class="bg-[--ng-glass-bg] border border-[--ng-glass-border] backdrop-blur-2xl rounded-xl p-4">
       <p class="text-slate-500 text-xs uppercase tracking-wider mb-1">Duration</p>
@@ -111,7 +111,7 @@
           <div class="flex-1 min-w-0 pb-1">
             <div class="flex items-center gap-2">
               {{ event_type_pill(event.event_type) }}
-              <span class="text-slate-600 text-xs tabular-nums">{{ event.timestamp.strftime("%d.%m. %H:%M:%S") }}</span>
+              <span class="text-slate-600 text-xs tabular-nums">{{ event.timestamp|localtime("%d.%m. %H:%M:%S") }}</span>
             </div>
             <p class="text-slate-300 text-sm mt-1">{{ event.summary }}</p>
             {% if event.detail %}

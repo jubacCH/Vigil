@@ -339,7 +339,7 @@
             {% elif msg.severity == 4 %}bg-yellow-500/[0.02]{% endif %}"
             {% if msg._fields %}onclick="this.nextElementSibling?.classList.toggle('hidden')"{% endif %}>
             <td class="px-4 py-2 text-[--ng-text-muted] text-xs tabular-nums whitespace-nowrap font-mono">
-              {{ msg.timestamp.strftime("%m-%d %H:%M:%S") }}
+              {{ msg.timestamp|localtime("%m-%d %H:%M:%S") }}
             </td>
             <td class="px-4 py-2">
               {% if msg.severity is not none %}

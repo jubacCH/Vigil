@@ -84,7 +84,7 @@
         </div>
         <div class="flex items-center justify-between mt-2.5 pt-2.5 border-t border-white/[0.06]">
             <span class="text-[10px] font-mono text-[--ng-text-muted]">{{ a.platform or '' }} {{ a.arch or '' }}</span>
-            <span class="text-[10px] font-mono text-[--ng-text-muted]">{% if a.last_seen %}{{ a.last_seen.strftime('%H:%M:%S') }}{% else %}never{% endif %}</span>
+            <span class="text-[10px] font-mono text-[--ng-text-muted]">{% if a.last_seen %}{{ a.last_seen|localtime('%H:%M:%S') }}{% else %}never{% endif %}</span>
         </div>
         {% else %}
         <p class="text-xs text-[--ng-text-muted] font-mono">Waiting for first report...</p>

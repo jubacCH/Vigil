@@ -3,7 +3,7 @@ from datetime import datetime
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
+from templating import templates
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,7 +12,6 @@ from models.integration import IntegrationConfig
 from services import snapshot as snap_svc
 
 router = APIRouter(prefix="/alerts")
-templates = Jinja2Templates(directory="templates")
 
 _INTEGRATION_LABELS = {
     "proxmox": "Proxmox", "unifi": "UniFi", "unas": "UniFi NAS",

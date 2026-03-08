@@ -48,7 +48,7 @@
                 {% endif %}
             </div>
             {% if inst.snap %}
-            <p class="text-xs text-[--ng-text-muted] mt-2">Last check: {{ inst.snap.timestamp.strftime('%H:%M:%S') if inst.snap.timestamp else '—' }}</p>
+            <p class="text-xs text-[--ng-text-muted] mt-2">Last check: {{ inst.snap.timestamp|localtime('%H:%M:%S') if inst.snap.timestamp else '—' }}</p>
             {% endif %}
         </a>
         <div class="flex items-center gap-2 mt-3 pt-3 border-t border-white/[0.06]">

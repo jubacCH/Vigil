@@ -71,7 +71,7 @@
       <!-- Time -->
       {% if alert.time %}
       <div class="shrink-0 text-right">
-        <p class="text-slate-500 text-xs tabular-nums">{{ alert.time.strftime("%d.%m. %H:%M") }}</p>
+        <p class="text-slate-500 text-xs tabular-nums">{{ alert.time|localtime("%d.%m. %H:%M") }}</p>
       </div>
       {% endif %}
 

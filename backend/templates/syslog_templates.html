@@ -89,7 +89,7 @@
 
             <!-- First/last seen -->
             <span class="text-[--ng-text-muted] text-[10px] font-mono">
-              {{ tpl.first_seen.strftime("%d.%m %H:%M") }} → {{ tpl.last_seen.strftime("%d.%m %H:%M") }}
+              {{ tpl.first_seen|localtime("%d.%m %H:%M") }} → {{ tpl.last_seen|localtime("%d.%m %H:%M") }}
             </span>
 
             <!-- Tags -->

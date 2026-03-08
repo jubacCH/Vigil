@@ -18,7 +18,7 @@
         {% if msg.severity is not none and msg.severity <= 2 %}bg-red-500/[0.03]
         {% elif msg.severity == 3 %}bg-orange-500/[0.02]
         {% elif msg.severity == 4 %}bg-yellow-500/[0.02]{% endif %}">
-        <td class="px-4 py-2 text-slate-500 text-xs tabular-nums whitespace-nowrap">{{ msg.timestamp.strftime("%m-%d %H:%M:%S") }}</td>
+        <td class="px-4 py-2 text-slate-500 text-xs tabular-nums whitespace-nowrap">{{ msg.timestamp|localtime("%m-%d %H:%M:%S") }}</td>
         <td class="px-4 py-2">
           {% if msg.severity is not none %}
           <span class="px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase

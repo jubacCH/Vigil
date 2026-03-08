@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
+from templating import templates
 import bcrypt
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,7 +11,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from database import Session, User, get_db
 
 router = APIRouter()
-templates = Jinja2Templates(directory="templates")
 
 SESSION_DAYS = 30
 

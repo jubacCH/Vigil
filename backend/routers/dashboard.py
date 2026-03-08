@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
+from templating import templates, localtime
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -17,7 +17,6 @@ from services import integration as int_svc
 from services import snapshot as snap_svc
 
 router = APIRouter()
-templates = Jinja2Templates(directory="templates")
 
 # ── Default dashboard widget layout (gridstack 12-col, cellHeight=40px) ──────
 VALID_WIDGET_IDS = {
@@ -511,7 +510,7 @@ async def dashboard(request: Request, db: AsyncSession = Depends(get_db)):
                     "upload_mbps": st_d.get("upload_mbps", 0),
                     "ping_ms": st_d.get("ping_ms", 0),
                     "server_name": st_d.get("server_name", ""),
-                    "timestamp": st_snap.timestamp.strftime("%d.%m %H:%M") if st_snap.timestamp else "",
+                    "timestamp": localtime(st_snap.timestamp, "%d.%m %H:%M") if st_snap.timestamp else "",
                 }
                 hist_rows = (await db.execute(
                     select(Snapshot)

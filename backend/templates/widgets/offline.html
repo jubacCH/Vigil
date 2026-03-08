@@ -20,7 +20,7 @@
         <div class="flex items-center justify-between mt-2">
           <span class="text-ng-critical text-xs font-display tracking-wider uppercase">Offline</span>
           {% if s.last_check %}
-          <span class="text-[--ng-text-muted] text-[10px] font-mono tabular-nums">{{ s.last_check.strftime("%H:%M") }}</span>
+          <span class="text-[--ng-text-muted] text-[10px] font-mono tabular-nums">{{ s.last_check|localtime("%H:%M") }}</span>
           {% endif %}
         </div>
       </a>

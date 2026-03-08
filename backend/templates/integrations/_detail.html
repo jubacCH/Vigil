@@ -58,7 +58,7 @@
 <div class="bg-[--ng-glass-bg] border border-[--ng-glass-border] backdrop-blur-2xl rounded-xl p-6">
     <h2 class="ng-heading text-lg text-[--ng-text-primary] mb-4">Snapshot Data</h2>
     {% if snap %}
-    <p class="text-xs text-[--ng-text-muted] mb-4">Last updated: {{ snap.timestamp.strftime('%Y-%m-%d %H:%M:%S') if snap.timestamp else '—' }}</p>
+    <p class="text-xs text-[--ng-text-muted] mb-4">Last updated: {{ snap.timestamp|localtime if snap.timestamp else '—' }}</p>
     {% endif %}
     <pre class="text-sm text-[--ng-text-primary] bg-white/[0.03] rounded-lg p-4 overflow-auto max-h-96">{{ data | tojson(indent=2) }}</pre>
 </div>

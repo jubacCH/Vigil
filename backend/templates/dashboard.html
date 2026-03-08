@@ -131,7 +131,7 @@
           {{ inc.severity[:4] }}
         </span>
         <span class="text-[--ng-text-primary] text-sm flex-1 truncate group-hover:text-ng-critical transition-colors">{{ inc.title }}</span>
-        <span class="text-[--ng-text-muted] text-xs font-mono tabular-nums shrink-0">{{ inc.created_at.strftime("%H:%M") }}</span>
+        <span class="text-[--ng-text-muted] text-xs font-mono tabular-nums shrink-0">{{ inc.created_at|localtime("%H:%M") }}</span>
       </a>
       {% endfor %}
     </div>
