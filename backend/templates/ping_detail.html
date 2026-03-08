@@ -61,6 +61,13 @@
             Latency threshold exceeded
           </span>
         {% endif %}
+        <form method="post" action="/ping/{{ host.id }}/check" class="inline-flex">
+          <button type="submit" title="Ping now"
+            class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/[0.06] hover:bg-white/[0.1] text-slate-400 hover:text-white text-xs font-medium transition-colors border border-white/[0.06]">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+            Ping
+          </button>
+        </form>
       </div>
       <p class="text-slate-500 text-sm mt-0.5">
         {{ host.hostname }}

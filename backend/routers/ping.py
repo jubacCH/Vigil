@@ -531,6 +531,40 @@ async def ping_detail(host_id: int, request: Request, db: AsyncSession = Depends
     })
 
 
+# ── Manual ping ────────────────────────────────────────────────────────────────
+
+@router.post("/{host_id}/check")
+async def ping_check_now(host_id: int, db: AsyncSession = Depends(get_db)):
+    """Run an immediate ping check for a single host and store the result."""
+    host = await db.get(PingHost, host_id)
+    if not host:
+        return RedirectResponse(url="/ping", status_code=303)
+
+    # For agent-sourced hosts, check agent heartbeat instead of ICMP
+    if host.source == "agent":
+        from sqlalchemy import func as sa_func
+        agent_r = await db.execute(
+            select(Agent).where(sa_func.lower(Agent.hostname) == host.name.lower())
+        )
+        agent = agent_r.scalars().first()
+        success = False
+        if agent and agent.last_seen:
+            success = (datetime.utcnow() - agent.last_seen).total_seconds() < 120
+        latency = 0 if success else None
+    else:
+        success, latency = await check_host(host)
+
+    db.add(PingResult(
+        host_id=host.id,
+        timestamp=datetime.utcnow(),
+        success=success,
+        latency_ms=latency,
+    ))
+    await db.commit()
+
+    return RedirectResponse(url=f"/ping/{host_id}", status_code=303)
+
+
 # ── CRUD actions ───────────────────────────────────────────────────────────────
 
 @router.post("/add")
