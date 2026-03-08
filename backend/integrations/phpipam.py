@@ -182,9 +182,36 @@ class PhpIpamIntegration(BaseIntegration):
             )
             await client.authenticate()
             addresses = await client.get_addresses()
+
+            active = [a for a in addresses if str(a.get("active", "1")) != "0"]
+
+            # Build subnet summary
+            subnets: dict[str, int] = {}
+            for a in active:
+                subnet_id = a.get("subnetId", "?")
+                subnets[subnet_id] = subnets.get(subnet_id, 0) + 1
+
+            # Recent addresses (last 10 added/modified)
+            recent = sorted(
+                [a for a in active if a.get("ip")],
+                key=lambda a: a.get("editDate") or a.get("lastSeen") or "",
+                reverse=True,
+            )[:10]
+            recent_list = []
+            for a in recent:
+                recent_list.append({
+                    "ip": a.get("ip", ""),
+                    "hostname": a.get("hostname") or a.get("description") or "",
+                    "last_seen": a.get("lastSeen") or "",
+                    "mac": a.get("mac") or "",
+                })
+
             return CollectorResult(success=True, data={
                 "addresses_total": len(addresses),
-                "addresses_active": sum(1 for a in addresses if str(a.get("active", "1")) != "0"),
+                "addresses_active": len(active),
+                "addresses_inactive": len(addresses) - len(active),
+                "subnets_count": len(subnets),
+                "recent_addresses": recent_list,
             })
         except Exception as exc:
             return CollectorResult(success=False, error=str(exc))
