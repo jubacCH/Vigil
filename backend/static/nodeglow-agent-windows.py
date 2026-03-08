@@ -75,11 +75,14 @@ log = _setup_logging()
 # ── WMI helpers via PowerShell ───────────────────────────────────────────────
 
 def _ps(cmd, timeout=10):
-    """Run a PowerShell command and return stdout."""
+    """Run a PowerShell command and return stdout (UTF-8)."""
     try:
+        # Force UTF-8 output to avoid CP1252 mangling German umlauts etc.
+        wrapped = f"[Console]::OutputEncoding = [Text.Encoding]::UTF8; {cmd}"
         result = subprocess.run(
-            ["powershell", "-NoProfile", "-NonInteractive", "-Command", cmd],
-            capture_output=True, text=True, timeout=timeout,
+            ["powershell", "-NoProfile", "-NonInteractive", "-Command", wrapped],
+            capture_output=True, text=True, encoding="utf-8", errors="replace",
+            timeout=timeout,
         )
         return result.stdout.strip()
     except Exception:
