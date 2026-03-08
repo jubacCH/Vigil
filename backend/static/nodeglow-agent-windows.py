@@ -705,9 +705,11 @@ def get_recent_logs(max_events=200, levels=None):
     # Build StartTime for FilterHashtable — this is natively supported and efficient
     if _last_log_ts:
         # Parse ISO timestamp back to PowerShell DateTime
-        start_time_expr = f"[DateTime]::Parse('{_last_log_ts}').ToLocalTime()"
+        # Subtract 1 second to avoid missing events at exact boundary
+        start_time_expr = f"[DateTime]::Parse('{_last_log_ts}').ToLocalTime().AddSeconds(-1)"
     else:
-        start_time_expr = "(Get-Date).AddSeconds(-60)"
+        # First run: look back 2 minutes to catch events from before agent started
+        start_time_expr = "(Get-Date).AddSeconds(-120)"
 
     logs = []
     for log_name in ("System", "Application"):
@@ -1137,6 +1139,8 @@ def main():
                     if logs:
                         lok = send_logs(args.server, args.token, socket.gethostname(), logs)
                         log.info("Logs: %d entries %s", len(logs), "sent" if lok else "FAILED")
+                    else:
+                        log.debug("No new log events")
                 except Exception as e:
                     log.error("Log collect error: %s", e)
 
