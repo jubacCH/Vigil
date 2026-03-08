@@ -954,11 +954,11 @@
   function _slLoad(page) {
     const el = document.getElementById('syslog-content');
     if (!el) return;
-    el.style.opacity = '0.5';
+    // No opacity flash — just swap content instantly when ready
     fetch(_slBuildUrl(page || 1))
       .then(r => r.text())
-      .then(html => { el.innerHTML = html; el.style.opacity = '1'; syslogLoaded = true; })
-      .catch(() => { el.innerHTML = '<div class="p-6 text-center text-red-400 text-sm">Failed to load syslog data</div>'; el.style.opacity = '1'; });
+      .then(html => { el.innerHTML = html; syslogLoaded = true; })
+      .catch(() => { el.innerHTML = '<div class="p-6 text-center text-red-400 text-sm">Failed to load syslog data</div>'; });
   }
 
   function loadSyslog() { _slSev = ''; _slSort = 'desc'; _slLoad(1); }
