@@ -33,7 +33,43 @@ import time
 import urllib.error
 import urllib.request
 
-__version__ = "1.4.0"
+__version__ = "1.5.0"
+
+
+# ── File logging ───────────────────────────────────────────────────────────
+
+import logging
+import logging.handlers
+
+def _setup_logging():
+    """Set up file + console logging in the Nodeglow install dir."""
+    if getattr(sys, 'frozen', False):
+        log_dir = os.path.dirname(sys.executable)
+    else:
+        log_dir = os.path.dirname(os.path.abspath(__file__))
+
+    log_file = os.path.join(log_dir, "nodeglow-agent.log")
+
+    logger = logging.getLogger("nodeglow")
+    logger.setLevel(logging.DEBUG)
+
+    # Rotating file handler: 2 MB max, keep 3 backups
+    fh = logging.handlers.RotatingFileHandler(
+        log_file, maxBytes=2 * 1024 * 1024, backupCount=3, encoding="utf-8",
+    )
+    fh.setLevel(logging.DEBUG)
+    fh.setFormatter(logging.Formatter("%(asctime)s %(levelname)-7s %(message)s", datefmt="%Y-%m-%d %H:%M:%S"))
+
+    # Console handler
+    ch = logging.StreamHandler()
+    ch.setLevel(logging.INFO)
+    ch.setFormatter(logging.Formatter("[nodeglow-agent] %(message)s"))
+
+    logger.addHandler(fh)
+    logger.addHandler(ch)
+    return logger
+
+log = _setup_logging()
 
 
 # ── WMI helpers via PowerShell ───────────────────────────────────────────────
@@ -720,7 +756,7 @@ def send_logs(server, token, hostname, logs):
         with urllib.request.urlopen(req, timeout=15) as resp:
             return resp.status == 200
     except Exception as e:
-        print(f"[nodeglow-agent] Log send error: {e}", file=sys.stderr)
+        log.error("Log send error: %s", e)
         return False
 
 
@@ -825,10 +861,10 @@ def send_metrics(server, token, data):
         with urllib.request.urlopen(req, timeout=10) as resp:
             return resp.status == 200
     except urllib.error.HTTPError as e:
-        print(f"[nodeglow-agent] HTTP {e.code}: {e.read().decode()[:200]}", file=sys.stderr)
+        log.error("HTTP %d: %s", e.code, e.read().decode()[:200])
         return False
     except Exception as e:
-        print(f"[nodeglow-agent] Error: {e}", file=sys.stderr)
+        log.error("Send error: %s", e)
         return False
 
 
@@ -859,16 +895,16 @@ def install_task(server, token, interval):
     )
     ret = os.system(cmd)
     if ret == 0:
-        print(f"Installed scheduled task: {task_name}")
-        print(f"  Script: {bat_path}")
-        print(f"  To start now: schtasks /run /tn \"{task_name}\"")
-        print(f"  To remove:    schtasks /delete /tn \"{task_name}\" /f")
+        log.info("Installed scheduled task: %s", task_name)
+        log.info("  Script: %s", bat_path)
+        log.info("  To start now: schtasks /run /tn \"%s\"", task_name)
+        log.info("  To remove:    schtasks /delete /tn \"%s\" /f", task_name)
 
         # Also start it now
         os.system(f'start "" "{bat_path}"')
-        print(f"  Agent started.")
+        log.info("  Agent started.")
     else:
-        print(f"Error: Failed to create scheduled task (run as Administrator)", file=sys.stderr)
+        log.error("Failed to create scheduled task (run as Administrator)")
         sys.exit(1)
 
 
@@ -922,7 +958,7 @@ def check_and_update(server):
         if local_hash == remote_hash:
             return False
 
-        print(f"[nodeglow-agent] Update available (local={local_hash[:12]}... remote={remote_hash[:12]}...)")
+        log.info("Update available (local=%s... remote=%s...)", local_hash[:12], remote_hash[:12])
 
         # Download new version to temp file
         download_url = f"{server.rstrip('/')}/agents/download/windows"
@@ -931,8 +967,12 @@ def check_and_update(server):
         else:
             own_path = os.path.abspath(__file__)
 
-        tmp_fd, tmp_path = tempfile.mkstemp(suffix=".exe" if getattr(sys, 'frozen', False) else ".py",
-                                             dir=os.path.dirname(own_path))
+        own_dir = os.path.dirname(own_path)
+        own_name = os.path.basename(own_path)
+        is_exe = getattr(sys, 'frozen', False)
+        suffix = ".exe" if is_exe else ".py"
+
+        tmp_fd, tmp_path = tempfile.mkstemp(suffix=suffix, dir=own_dir)
         os.close(tmp_fd)
 
         try:
@@ -942,38 +982,72 @@ def check_and_update(server):
             with open(tmp_path, "rb") as f:
                 dl_hash = hashlib.sha256(f.read()).hexdigest()
             if dl_hash != remote_hash:
-                print(f"[nodeglow-agent] Download hash mismatch, aborting update", file=sys.stderr)
+                log.error("Download hash mismatch, aborting update")
                 os.remove(tmp_path)
                 return False
 
-            # On Windows: rename old → .old, move new → original, then restart
-            old_backup = own_path + ".old"
-            if os.path.exists(old_backup):
+            if is_exe:
+                # Windows: running .exe CAN be renamed but NOT deleted.
+                # Strategy: rename running exe → .old, move new → original name,
+                # then use a small batch script to restart.
+                old_backup = own_path + ".old"
+                if os.path.exists(old_backup):
+                    try:
+                        os.remove(old_backup)
+                    except Exception:
+                        pass
+
                 try:
-                    os.remove(old_backup)
-                except Exception:
-                    pass
+                    os.rename(own_path, old_backup)
+                except PermissionError:
+                    # Fallback: if rename fails, write an updater batch script
+                    # that waits for us to exit, then replaces the file
+                    log.warning("Cannot rename running exe, using deferred update")
+                    bat_path = os.path.join(own_dir, "_update.bat")
+                    with open(bat_path, "w") as bf:
+                        bf.write(f'@echo off\n')
+                        bf.write(f'timeout /t 3 /nobreak >nul\n')
+                        bf.write(f'move /Y "{tmp_path}" "{own_path}"\n')
+                        bf.write(f'start "" "{own_path}"\n')
+                        bf.write(f'del "%~f0"\n')
+                    subprocess.Popen(
+                        ["cmd", "/c", bat_path],
+                        creationflags=0x00000208,  # CREATE_NEW_PROCESS_GROUP | DETACHED_PROCESS
+                    )
+                    log.info("Deferred update scheduled, exiting for restart...")
+                    sys.exit(0)
 
-            os.rename(own_path, old_backup)
-            shutil.move(tmp_path, own_path)
+                shutil.move(tmp_path, own_path)
+                log.info("Updated successfully (v%s), restarting...", __version__)
 
-            print(f"[nodeglow-agent] Updated successfully, restarting...")
-
-            # Restart: launch new process, exit current
-            if getattr(sys, 'frozen', False):
-                subprocess.Popen([own_path], creationflags=0x00000008)  # DETACHED_PROCESS
+                # Restart: launch new exe (it reads config.json for server/token)
+                subprocess.Popen(
+                    [own_path],
+                    creationflags=0x00000208,  # CREATE_NEW_PROCESS_GROUP | DETACHED_PROCESS
+                )
             else:
-                subprocess.Popen([sys.executable, own_path], creationflags=0x00000008)
+                # Script mode: just replace the file
+                shutil.move(tmp_path, own_path)
+                log.info("Updated successfully (v%s), restarting...", __version__)
+                subprocess.Popen(
+                    [sys.executable, own_path],
+                    creationflags=0x00000008,
+                )
+
             sys.exit(0)
 
+        except SystemExit:
+            raise  # let sys.exit(0) propagate
         except Exception as e:
-            print(f"[nodeglow-agent] Update failed: {e}", file=sys.stderr)
+            log.error("Update failed: %s", e)
             if os.path.exists(tmp_path):
                 os.remove(tmp_path)
             return False
 
+    except SystemExit:
+        raise
     except Exception as e:
-        print(f"[nodeglow-agent] Update check failed: {e}", file=sys.stderr)
+        log.error("Update check failed: %s", e)
         return False
 
 
@@ -994,19 +1068,30 @@ def main():
         return
 
     if not args.server:
-        print("Error: --server or NODEGLOW_SERVER required", file=sys.stderr)
+        log.error("--server or NODEGLOW_SERVER required")
         sys.exit(1)
     if not args.token:
-        print("Error: --token or NODEGLOW_TOKEN required", file=sys.stderr)
+        log.error("--token or NODEGLOW_TOKEN required")
         sys.exit(1)
 
     if args.install:
         install_task(args.server, args.token, args.interval)
         return
 
-    print(f"[nodeglow-agent] v{__version__} | {socket.gethostname()} | Windows {platform.version()}")
-    print(f"[nodeglow-agent] reporting to {args.server} every {args.interval}s")
-    print(f"[nodeglow-agent] auto-update check every 5 minutes")
+    # Clean up leftover files from previous updates
+    if getattr(sys, 'frozen', False):
+        own_dir = os.path.dirname(sys.executable)
+        for leftover in [sys.executable + ".old", os.path.join(own_dir, "_update.bat")]:
+            if os.path.exists(leftover):
+                try:
+                    os.remove(leftover)
+                    log.debug("Cleaned up: %s", leftover)
+                except Exception:
+                    pass
+
+    log.info("v%s | %s | Windows %s", __version__, socket.gethostname(), platform.version())
+    log.info("reporting to %s every %ds", args.server, args.interval)
+    log.info("auto-update check every 5 minutes")
 
     update_interval = 300  # 5 minutes
     last_update_check = 0
@@ -1019,8 +1104,7 @@ def main():
             data = collect_all()
             ok = send_metrics(args.server, args.token, data)
             if ok:
-                print(f"[nodeglow-agent] OK cpu={data.get('cpu_pct', '?')}% "
-                      f"mem={data.get('memory', {}).get('pct', '?')}%")
+                log.info("OK cpu=%s%% mem=%s%%", data.get('cpu_pct', '?'), data.get('memory', {}).get('pct', '?'))
 
             # Send logs less frequently than metrics
             now = time.time()
@@ -1030,12 +1114,12 @@ def main():
                     logs = get_recent_logs()
                     if logs:
                         lok = send_logs(args.server, args.token, socket.gethostname(), logs)
-                        print(f"[nodeglow-agent] Logs: {len(logs)} entries {'sent' if lok else 'FAILED'}")
+                        log.info("Logs: %d entries %s", len(logs), "sent" if lok else "FAILED")
                 except Exception as e:
-                    print(f"[nodeglow-agent] Log collect error: {e}", file=sys.stderr)
+                    log.error("Log collect error: %s", e)
 
         except Exception as e:
-            print(f"[nodeglow-agent] error: {e}", file=sys.stderr)
+            log.error("Main loop error: %s", e)
         if args.once:
             break
 

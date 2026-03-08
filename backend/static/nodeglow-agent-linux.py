@@ -28,7 +28,37 @@ import time
 import urllib.error
 import urllib.request
 
-__version__ = "1.3.0"
+__version__ = "1.5.0"
+
+import logging
+import logging.handlers
+
+
+def _setup_logging():
+    """Set up file + console logging in the Nodeglow install dir."""
+    if getattr(sys, 'frozen', False):
+        log_dir = os.path.dirname(sys.executable)
+    else:
+        log_dir = os.path.dirname(os.path.abspath(__file__))
+    log_file = os.path.join(log_dir, "nodeglow-agent.log")
+    logger = logging.getLogger("nodeglow")
+    logger.setLevel(logging.DEBUG)
+    fh = logging.handlers.RotatingFileHandler(
+        log_file, maxBytes=2 * 1024 * 1024, backupCount=3, encoding="utf-8",
+    )
+    fh.setLevel(logging.DEBUG)
+    fh.setFormatter(logging.Formatter(
+        "%(asctime)s %(levelname)-7s %(message)s", datefmt="%Y-%m-%d %H:%M:%S",
+    ))
+    ch = logging.StreamHandler()
+    ch.setLevel(logging.INFO)
+    ch.setFormatter(logging.Formatter("[nodeglow-agent] %(message)s"))
+    logger.addHandler(fh)
+    logger.addHandler(ch)
+    return logger
+
+
+log = _setup_logging()
 
 
 # ── Collectors ───────────────────────────────────────────────────────────────
@@ -342,7 +372,7 @@ def send_logs(server, token, hostname, logs):
         with urllib.request.urlopen(req, timeout=15) as resp:
             return resp.status == 200
     except Exception as e:
-        print(f"[nodeglow-agent] Log send error: {e}", file=sys.stderr)
+        log.error("Log send error: %s", e)
         return False
 
 
@@ -409,10 +439,10 @@ def send_metrics(server, token, data):
         with urllib.request.urlopen(req, timeout=10) as resp:
             return resp.status == 200
     except urllib.error.HTTPError as e:
-        print(f"[nodeglow-agent] HTTP {e.code}: {e.read().decode()[:200]}", file=sys.stderr)
+        log.error("HTTP %d: %s", e.code, e.read().decode()[:200])
         return False
     except Exception as e:
-        print(f"[nodeglow-agent] Error: {e}", file=sys.stderr)
+        log.error("Send error: %s", e)
         return False
 
 
@@ -439,7 +469,7 @@ WantedBy=multi-user.target
 
 def install_systemd(server, token, interval):
     if os.geteuid() != 0:
-        print("Error: --install requires root (use sudo)", file=sys.stderr)
+        log.error("--install requires root (use sudo)")
         sys.exit(1)
 
     script_path = os.path.abspath(__file__)
@@ -457,10 +487,10 @@ def install_systemd(server, token, interval):
     os.system("systemctl daemon-reload")
     os.system("systemctl enable nodeglow-agent")
     os.system("systemctl start nodeglow-agent")
-    print(f"Installed and started nodeglow-agent.service")
-    print(f"  Config: {unit_path}")
-    print(f"  Status: systemctl status nodeglow-agent")
-    print(f"  Logs:   journalctl -u nodeglow-agent -f")
+    log.info("Installed and started nodeglow-agent.service")
+    log.info("  Config: %s", unit_path)
+    log.info("  Status: systemctl status nodeglow-agent")
+    log.info("  Logs:   journalctl -u nodeglow-agent -f")
 
 
 # ── Auto-update ──────────────────────────────────────────────────────────────
@@ -490,7 +520,7 @@ def check_and_update(server):
         if local_hash == remote_hash:
             return False
 
-        print(f"[nodeglow-agent] Update available (local={local_hash[:12]}... remote={remote_hash[:12]}...)")
+        log.info("Update available (local=%s... remote=%s...)", local_hash[:12], remote_hash[:12])
 
         # Download new version to temp file
         own_path = os.path.abspath(__file__)
@@ -505,7 +535,7 @@ def check_and_update(server):
             with open(tmp_path, "rb") as f:
                 dl_hash = hashlib.sha256(f.read()).hexdigest()
             if dl_hash != remote_hash:
-                print(f"[nodeglow-agent] Download hash mismatch, aborting update", file=sys.stderr)
+                log.error("Download hash mismatch, aborting update")
                 os.remove(tmp_path)
                 return False
 
@@ -513,19 +543,19 @@ def check_and_update(server):
             os.chmod(tmp_path, 0o755)
             os.replace(tmp_path, own_path)
 
-            print(f"[nodeglow-agent] Updated successfully, restarting...")
+            log.info("Updated successfully, restarting...")
 
             # Restart via exec (replaces current process)
             os.execv(sys.executable, [sys.executable, own_path])
 
         except Exception as e:
-            print(f"[nodeglow-agent] Update failed: {e}", file=sys.stderr)
+            log.error("Update failed: %s", e)
             if os.path.exists(tmp_path):
                 os.remove(tmp_path)
             return False
 
     except Exception as e:
-        print(f"[nodeglow-agent] Update check failed: {e}", file=sys.stderr)
+        log.error("Update check failed: %s", e)
         return False
 
 
@@ -563,19 +593,19 @@ def main():
         return
 
     if not args.server:
-        print("Error: --server or NODEGLOW_SERVER required", file=sys.stderr)
+        log.error("--server or NODEGLOW_SERVER required")
         sys.exit(1)
     if not args.token:
-        print("Error: --token or NODEGLOW_TOKEN required", file=sys.stderr)
+        log.error("--token or NODEGLOW_TOKEN required")
         sys.exit(1)
 
     if args.install:
         install_systemd(args.server, args.token, args.interval)
         return
 
-    print(f"[nodeglow-agent] v{__version__} | {socket.gethostname()} | Linux {platform.release()}")
-    print(f"[nodeglow-agent] reporting to {args.server} every {args.interval}s")
-    print(f"[nodeglow-agent] auto-update check every 5 minutes")
+    log.info("v%s | %s | Linux %s", __version__, socket.gethostname(), platform.release())
+    log.info("reporting to %s every %ds", args.server, args.interval)
+    log.info("auto-update check every 5 minutes")
 
     update_interval = 300  # 5 minutes
     last_update_check = 0
@@ -588,9 +618,7 @@ def main():
             data = collect_all()
             ok = send_metrics(args.server, args.token, data)
             if ok:
-                print(f"[nodeglow-agent] OK cpu={data.get('cpu_pct', '?')}% "
-                      f"mem={data.get('memory', {}).get('pct', '?')}% "
-                      f"load={data.get('load', {}).get('load_1', '?')}")
+                log.info("OK cpu=%s%% mem=%s%% load=%s", data.get('cpu_pct', '?'), data.get('memory', {}).get('pct', '?'), data.get('load', {}).get('load_1', '?'))
 
             # Send logs less frequently than metrics
             now = time.time()
@@ -600,12 +628,12 @@ def main():
                     logs = get_recent_logs()
                     if logs:
                         lok = send_logs(args.server, args.token, socket.gethostname(), logs)
-                        print(f"[nodeglow-agent] Logs: {len(logs)} entries {'sent' if lok else 'FAILED'}")
+                        log.info("Logs: %d entries %s", len(logs), "sent" if lok else "FAILED")
                 except Exception as e:
-                    print(f"[nodeglow-agent] Log collect error: {e}", file=sys.stderr)
+                    log.error("Log collect error: %s", e)
 
         except Exception as e:
-            print(f"[nodeglow-agent] error: {e}", file=sys.stderr)
+            log.error("Main loop error: %s", e)
         if args.once:
             break
 

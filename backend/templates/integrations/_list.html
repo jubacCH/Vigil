@@ -28,7 +28,9 @@
     <div class="glass-card p-5 flex flex-col">
         <a href="/integration/{{ integration.name }}/{{ inst.config.id }}" class="block flex-1">
             <div class="flex items-center gap-3 mb-3">
-                {% if integration.icon %}
+                {% if integration.icon_svg %}
+                <span class="w-6 h-6 text-[--ng-text-secondary]">{{ integration.icon_svg | safe }}</span>
+                {% elif integration.icon %}
                 <img src="https://cdn.simpleicons.org/{{ integration.icon }}/94a3b8" class="w-6 h-6" alt="">
                 {% endif %}
                 <h3 class="font-medium text-[--ng-text-primary] truncate">{{ inst.config.name }}</h3>
