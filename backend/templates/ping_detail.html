@@ -935,16 +935,56 @@
 
   let syslogLoaded = false;
 
-  function loadSyslog() {
+  // ── Syslog filter/sort/pagination state ──
+  const _slHostId = {{ host.id }};
+  let _slSev = '';
+  let _slSort = 'desc';
+
+  function _slBuildUrl(page) {
     const hours = document.getElementById('syslog-hours')?.value || 24;
+    const app = document.getElementById('syslog-app-filter')?.value || '';
+    const q = document.getElementById('syslog-search')?.value || '';
+    let url = `/syslog/api/host/${_slHostId}?hours=${hours}&page=${page}&sort=${_slSort}`;
+    if (_slSev) url += `&sev=${_slSev}`;
+    if (app) url += `&app=${encodeURIComponent(app)}`;
+    if (q) url += `&q=${encodeURIComponent(q)}`;
+    return url;
+  }
+
+  function _slLoad(page) {
     const el = document.getElementById('syslog-content');
     if (!el) return;
-    el.innerHTML = '<div class="p-6 text-center text-slate-600 text-sm">Loading...</div>';
-    fetch('/syslog/api/host/{{ host.id }}?hours=' + hours)
+    el.style.opacity = '0.5';
+    fetch(_slBuildUrl(page || 1))
       .then(r => r.text())
-      .then(html => { el.innerHTML = html; syslogLoaded = true; })
-      .catch(() => { el.innerHTML = '<div class="p-6 text-center text-red-400 text-sm">Failed to load syslog data</div>'; });
+      .then(html => { el.innerHTML = html; el.style.opacity = '1'; syslogLoaded = true; })
+      .catch(() => { el.innerHTML = '<div class="p-6 text-center text-red-400 text-sm">Failed to load syslog data</div>'; el.style.opacity = '1'; });
   }
+
+  function loadSyslog() { _slSev = ''; _slSort = 'desc'; _slLoad(1); }
+
+  // Global hooks called from onclick in the partial HTML
+  window._slToggleSev = function(val) {
+    const parts = _slSev ? _slSev.split(',').filter(Boolean) : [];
+    const idx = parts.indexOf(val);
+    if (idx >= 0) parts.splice(idx, 1); else parts.push(val);
+    _slSev = parts.join(',');
+    _slLoad(1);
+  };
+  window._slApply = function() { _slLoad(1); };
+  window._slClear = function() {
+    _slSev = ''; _slSort = 'desc';
+    const appEl = document.getElementById('syslog-app-filter');
+    if (appEl) appEl.value = '';
+    const qEl = document.getElementById('syslog-search');
+    if (qEl) qEl.value = '';
+    _slLoad(1);
+  };
+  window._slToggleSort = function() {
+    _slSort = _slSort === 'desc' ? 'asc' : 'desc';
+    _slLoad(1);
+  };
+  window._slPage = function(p) { _slLoad(p); };
 
   function switchTab(name) {
     ['info', 'monitoring', 'ports', 'syslog'].forEach(t => {
