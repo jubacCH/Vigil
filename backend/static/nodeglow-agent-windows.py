@@ -695,19 +695,20 @@ def get_recent_logs(max_events=200):
     """Collect recent Windows Event Log entries (System + Application)."""
     global _last_log_ts
 
-    # Build time filter: either since last check or last 60 seconds
+    # Build StartTime for FilterHashtable — this is natively supported and efficient
     if _last_log_ts:
-        time_filter = f"TimeCreated > '{_last_log_ts}'"
+        # Parse ISO timestamp back to PowerShell DateTime
+        start_time_expr = f"[DateTime]::Parse('{_last_log_ts}').ToLocalTime()"
     else:
-        time_filter = "TimeCreated > (Get-Date).AddSeconds(-60)"
+        start_time_expr = "(Get-Date).AddSeconds(-60)"
 
     logs = []
     for log_name in ("System", "Application"):
         ps_cmd = (
-            f"try {{ Get-WinEvent -FilterHashtable @{{LogName='{log_name}'; Level=1,2,3}} "
+            f"try {{ "
+            f"$startTime = {start_time_expr}; "
+            f"Get-WinEvent -FilterHashtable @{{LogName='{log_name}'; Level=1,2,3; StartTime=$startTime}} "
             f"-MaxEvents {max_events} -ErrorAction Stop | "
-            f"Where-Object {{ $_.{time_filter} }} | "
-            f"Select-Object TimeCreated, Id, Level, ProviderName, Message | "
             f"ForEach-Object {{ @{{ "
             f"ts = $_.TimeCreated.ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ'); "
             f"level = $_.Level; "
